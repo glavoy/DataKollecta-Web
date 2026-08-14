@@ -1,0 +1,3359 @@
+[
+  {
+    "project_schema": {
+      "tables": [
+        {
+          "table_name": "app_credentials",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "username",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "password_hash",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "description",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "is_active",
+              "type": "boolean",
+              "nullable": true,
+              "default": "true"
+            },
+            {
+              "column": "created_by",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "last_used_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": null
+            }
+          ]
+        },
+        {
+          "table_name": "app_sessions",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "credential_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "token",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "device_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "device_info",
+              "type": "jsonb",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "expires_at",
+              "type": "timestamp with time zone",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "last_activity_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            }
+          ]
+        },
+        {
+          "table_name": "crfs",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "survey_package_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "table_name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "display_name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "display_order",
+              "type": "integer",
+              "nullable": true,
+              "default": "0"
+            },
+            {
+              "column": "is_base",
+              "type": "boolean",
+              "nullable": true,
+              "default": "false"
+            },
+            {
+              "column": "primary_key",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "linking_field",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "parent_table",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "fields",
+              "type": "jsonb",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "id_config",
+              "type": "jsonb",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "display_fields",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "repeat_enforce_count",
+              "type": "integer",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "auto_start_repeat",
+              "type": "integer",
+              "nullable": true,
+              "default": "0"
+            }
+          ]
+        },
+        {
+          "table_name": "formchanges",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "gen_random_uuid()"
+            },
+            {
+              "column": "formchanges_uuid",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "record_uuid",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "tablename",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "fieldname",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "oldvalue",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "newvalue",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "surveyor_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "changed_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "synced_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            }
+          ]
+        },
+        {
+          "table_name": "profiles",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "email",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "full_name",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "role",
+              "type": "text",
+              "nullable": true,
+              "default": "'user'::text"
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "updated_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            }
+          ]
+        },
+        {
+          "table_name": "project_members",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "user_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "role",
+              "type": "USER-DEFINED",
+              "nullable": false,
+              "default": "'viewer'::project_role"
+            },
+            {
+              "column": "invited_by",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "invited_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "accepted_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": null
+            }
+          ]
+        },
+        {
+          "table_name": "projects",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "description",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "slug",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "status",
+              "type": "text",
+              "nullable": true,
+              "default": "'active'::text"
+            },
+            {
+              "column": "created_by",
+              "type": "uuid",
+              "nullable": true,
+              "default": "auth.uid()"
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "updated_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "is_active",
+              "type": "boolean",
+              "nullable": true,
+              "default": "true"
+            }
+          ]
+        },
+        {
+          "table_name": "submissions",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "survey_package_id",
+              "type": "uuid",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "crf_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "table_name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "record_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "local_unique_id",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "data",
+              "type": "jsonb",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "version",
+              "type": "integer",
+              "nullable": true,
+              "default": "1"
+            },
+            {
+              "column": "parent_table",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "parent_record_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "device_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "surveyor_id",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "app_version",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "collected_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "submitted_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "updated_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            }
+          ]
+        },
+        {
+          "table_name": "survey_packages",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": false,
+              "default": "uuid_generate_v4()"
+            },
+            {
+              "column": "project_id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "display_name",
+              "type": "text",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "version_date",
+              "type": "date",
+              "nullable": false,
+              "default": null
+            },
+            {
+              "column": "description",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "zip_file_path",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "manifest",
+              "type": "jsonb",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "status",
+              "type": "USER-DEFINED",
+              "nullable": true,
+              "default": "'draft'::survey_status"
+            },
+            {
+              "column": "created_by",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "created_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "updated_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": "now()"
+            },
+            {
+              "column": "published_at",
+              "type": "timestamp with time zone",
+              "nullable": true,
+              "default": null
+            }
+          ]
+        },
+        {
+          "table_name": "user_search",
+          "columns": [
+            {
+              "column": "id",
+              "type": "uuid",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "email",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            },
+            {
+              "column": "full_name",
+              "type": "text",
+              "nullable": true,
+              "default": null
+            }
+          ]
+        }
+      ],
+      "rls": [
+        {
+          "table": "app_credentials",
+          "policy": "Owners and admins can manage credentials",
+          "command": "ALL",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = app_credentials.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = ANY (ARRAY['owner'::project_role, 'admin'::project_role])))))",
+          "with_check": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = app_credentials.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = ANY (ARRAY['owner'::project_role, 'admin'::project_role])))))"
+        },
+        {
+          "table": "app_credentials",
+          "policy": "Owners and admins can view credentials",
+          "command": "SELECT",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = app_credentials.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = ANY (ARRAY['owner'::project_role, 'admin'::project_role])))))",
+          "with_check": null
+        },
+        {
+          "table": "app_sessions",
+          "policy": "Owners can view sessions",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = app_sessions.project_id) AND (project_members.role = 'owner'::project_role))))",
+          "with_check": null
+        },
+        {
+          "table": "crfs",
+          "policy": "Editors can manage crfs",
+          "command": "ALL",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = crfs.project_id) AND (project_members.role = ANY (ARRAY['owner'::project_role, 'editor'::project_role])))))",
+          "with_check": null
+        },
+        {
+          "table": "crfs",
+          "policy": "Users can view project crfs",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE (project_members.project_id = crfs.project_id)))",
+          "with_check": null
+        },
+        {
+          "table": "formchanges",
+          "policy": "Editors can manage formchanges",
+          "command": "ALL",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = formchanges.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = ANY (ARRAY['editor'::project_role, 'owner'::project_role])))))",
+          "with_check": null
+        },
+        {
+          "table": "formchanges",
+          "policy": "Users can view project formchanges",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = formchanges.project_id) AND (pm.user_id = auth.uid()))))",
+          "with_check": null
+        },
+        {
+          "table": "profiles",
+          "policy": "Authenticated users can search profiles for project membership",
+          "command": "SELECT",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "true",
+          "with_check": null
+        },
+        {
+          "table": "profiles",
+          "policy": "Users can update own profile",
+          "command": "UPDATE",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() = id)",
+          "with_check": null
+        },
+        {
+          "table": "profiles",
+          "policy": "Users can view own profile",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() = id)",
+          "with_check": null
+        },
+        {
+          "table": "project_members",
+          "policy": "Allow member creation",
+          "command": "INSERT",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": null,
+          "with_check": "(((user_id = auth.uid()) AND (role = 'owner'::project_role)) OR (EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = project_members.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = 'owner'::project_role)))))"
+        },
+        {
+          "table": "project_members",
+          "policy": "Owners can delete memberships",
+          "command": "DELETE",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = project_members.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = 'owner'::project_role))))",
+          "with_check": null
+        },
+        {
+          "table": "project_members",
+          "policy": "Owners can update memberships",
+          "command": "UPDATE",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "(EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = project_members.project_id) AND (pm.user_id = auth.uid()) AND (pm.role = 'owner'::project_role))))",
+          "with_check": null
+        },
+        {
+          "table": "project_members",
+          "policy": "Users can view project members",
+          "command": "SELECT",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "(project_id IN ( SELECT get_auth_user_project_ids() AS get_auth_user_project_ids))",
+          "with_check": null
+        },
+        {
+          "table": "projects",
+          "policy": "Enable insert for authenticated users only",
+          "command": "INSERT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": null,
+          "with_check": "(( SELECT auth.role() AS role) = 'authenticated'::text)"
+        },
+        {
+          "table": "projects",
+          "policy": "Owners can delete projects",
+          "command": "DELETE",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = projects.id) AND (project_members.role = 'owner'::project_role))))",
+          "with_check": null
+        },
+        {
+          "table": "projects",
+          "policy": "Owners can update projects",
+          "command": "UPDATE",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = projects.id) AND (project_members.role = 'owner'::project_role))))",
+          "with_check": null
+        },
+        {
+          "table": "projects",
+          "policy": "Users can view member projects",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "((auth.uid() = created_by) OR (EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.project_id = projects.id) AND (pm.user_id = auth.uid())))))",
+          "with_check": null
+        },
+        {
+          "table": "submissions",
+          "policy": "Editors can manage submissions",
+          "command": "ALL",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = submissions.project_id) AND (project_members.role = ANY (ARRAY['owner'::project_role, 'editor'::project_role])))))",
+          "with_check": null
+        },
+        {
+          "table": "submissions",
+          "policy": "Users can view project submissions",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE (project_members.project_id = submissions.project_id)))",
+          "with_check": null
+        },
+        {
+          "table": "survey_packages",
+          "policy": "Editors can manage surveys",
+          "command": "ALL",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE ((project_members.project_id = survey_packages.project_id) AND (project_members.role = ANY (ARRAY['owner'::project_role, 'editor'::project_role])))))",
+          "with_check": null
+        },
+        {
+          "table": "survey_packages",
+          "policy": "Users can view project surveys",
+          "command": "SELECT",
+          "roles": [
+            "public"
+          ],
+          "using_expr": "(auth.uid() IN ( SELECT project_members.user_id\n   FROM project_members\n  WHERE (project_members.project_id = survey_packages.project_id)))",
+          "with_check": null
+        }
+      ],
+      "rls_status": [
+        {
+          "table": "app_credentials",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "app_sessions",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "crfs",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "formchanges",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "profiles",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "project_members",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "projects",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "submissions",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table": "survey_packages",
+          "rls_enabled": true,
+          "rls_forced": false
+        }
+      ],
+      "table_privileges": [
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_credentials",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "app_sessions",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "crfs",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "formchanges",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "profiles",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "project_members",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "projects",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "submissions",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "survey_packages",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "anon",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "authenticated",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table": "user_search",
+          "grantee": "service_role",
+          "privilege": "UPDATE",
+          "is_grantable": false
+        }
+      ],
+      "data_api_grants_summary": [
+        {
+          "table": "app_credentials",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "app_sessions",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "crfs",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "formchanges",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "profiles",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "project_members",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "projects",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "submissions",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "survey_packages",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        },
+        {
+          "table": "user_search",
+          "exposed_to_anon": true,
+          "exposed_to_authenticated": true,
+          "grants": [
+            {
+              "grantee": "anon",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "anon",
+              "privilege": "UPDATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "DELETE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "INSERT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "REFERENCES"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "SELECT"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRIGGER"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "TRUNCATE"
+            },
+            {
+              "grantee": "authenticated",
+              "privilege": "UPDATE"
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "add_project_owner",
+          "args": "",
+          "returns": "trigger",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.add_project_owner()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nBEGIN\r\n    INSERT INTO public.project_members (project_id, user_id, role, accepted_at)\r\n    VALUES (NEW.id, NEW.created_by, 'owner', NOW());\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "create_app_credential",
+          "args": "p_project_id uuid, p_username text, p_password text, p_description text",
+          "returns": "jsonb",
+          "security_definer": false,
+          "definition": "CREATE OR REPLACE FUNCTION public.create_app_credential(p_project_id uuid, p_username text, p_password text, p_description text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public', 'extensions'\nAS $function$\n  declare\n    v_credential_id uuid;\n    v_result jsonb;\n    v_current_user_id uuid;\n  begin\n    -- Only project owners/admins can create app credentials\n    if not public.is_project_owner(p_project_id)\n       and not public.is_project_admin(p_project_id) then\n      raise exception 'Not authorized';\n    end if;\n\n    -- Prevent duplicate usernames within the project\n    if exists (\n      select 1\n      from public.app_credentials\n      where project_id = p_project_id\n        and username = p_username\n    ) then\n      raise exception 'Username already exists for this project';\n    end if;\n\n    v_current_user_id := auth.uid();\n\n    insert into public.app_credentials (\n      project_id,\n      username,\n      password_hash,\n      description,\n      is_active,\n      created_by\n    )\n    values (\n      p_project_id,\n      p_username,\n      extensions.crypt(p_password, extensions.gen_salt('bf')),\n      p_description,\n      true,\n      v_current_user_id\n    )\n    returning id into v_credential_id;\n\n    select jsonb_build_object(\n      'id', id,\n      'username', username,\n      'description', description,\n      'is_active', is_active,\n      'created_at', created_at\n    )\n    into v_result\n    from public.app_credentials\n    where id = v_credential_id;\n\n    return v_result;\n  end;\n  $function$\n"
+        },
+        {
+          "name": "get_auth_user_project_ids",
+          "args": "",
+          "returns": "uuid",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.get_auth_user_project_ids()\n RETURNS SETOF uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n    SELECT project_id\n    FROM project_members\n    WHERE user_id = auth.uid();\n$function$\n"
+        },
+        {
+          "name": "get_submission_counts",
+          "args": "p_project_id uuid",
+          "returns": "record",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.get_submission_counts(p_project_id uuid)\n RETURNS TABLE(survey_package_id uuid, survey_name text, table_name text, crf_display_name text, total_count bigint, today_count bigint, this_week_count bigint)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nBEGIN\r\n    RETURN QUERY\r\n    SELECT\r\n        sp.id, sp.display_name, s.table_name, c.display_name,\r\n        COUNT(*),\r\n        COUNT(*) FILTER (WHERE DATE(s.collected_at) = CURRENT_DATE),\r\n        COUNT(*) FILTER (WHERE s.collected_at >= CURRENT_DATE - INTERVAL '7 days')\r\n    FROM public.submissions s\r\n    JOIN public.survey_packages sp ON s.survey_package_id = sp.id\r\n    LEFT JOIN public.crfs c ON s.crf_id = c.id\r\n    WHERE s.project_id = p_project_id\r\n    GROUP BY sp.id, sp.display_name, s.table_name, c.display_name\r\n    ORDER BY sp.version_date DESC, c.display_order;\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "handle_new_user",
+          "args": "",
+          "returns": "trigger",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'auth'\nAS $function$\r\nBEGIN\r\n    INSERT INTO public.profiles (id, email, full_name)\r\n    VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "is_project_admin",
+          "args": "p_project_id uuid",
+          "returns": "bool",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.is_project_admin(p_project_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_role TEXT;\r\nBEGIN\r\n    -- This function runs with SECURITY DEFINER, bypassing RLS\r\n    SELECT role INTO v_role\r\n    FROM public.project_members\r\n    WHERE project_id = p_project_id\r\n    AND user_id = auth.uid()\r\n    LIMIT 1;\r\n\r\n    RETURN v_role IN ('admin', 'owner');\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "is_project_owner",
+          "args": "p_project_id uuid",
+          "returns": "bool",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.is_project_owner(p_project_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_role TEXT;\r\nBEGIN\r\n    -- This function runs with SECURITY DEFINER, bypassing RLS\r\n    SELECT role INTO v_role\r\n    FROM public.project_members\r\n    WHERE project_id = p_project_id\r\n    AND user_id = auth.uid()\r\n    LIMIT 1;\r\n\r\n    RETURN v_role = 'owner';\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "log_submission_change",
+          "args": "",
+          "returns": "trigger",
+          "security_definer": false,
+          "definition": "CREATE OR REPLACE FUNCTION public.log_submission_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_changed_fields JSONB;\r\nBEGIN\r\n    IF TG_OP = 'UPDATE' THEN\r\n        SELECT jsonb_agg(key)\r\n        INTO v_changed_fields\r\n        FROM jsonb_each(NEW.data)\r\n        WHERE NOT (OLD.data ? key AND OLD.data->key = NEW.data->key);\r\n    END IF;\r\n\r\n    INSERT INTO public.submission_history (\r\n        submission_id, data, version, change_type, changed_fields,\r\n        changed_by, changed_on_device, synced_at\r\n    ) VALUES (\r\n        NEW.id, NEW.data, NEW.version,\r\n        CASE WHEN TG_OP = 'INSERT' THEN 'created' WHEN TG_OP = 'UPDATE' THEN 'modified' END,\r\n        v_changed_fields, NEW.surveyor_id, NEW.device_id, NOW()\r\n    );\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
+        },
+        {
+          "name": "user_has_project_role",
+          "args": "p_project_id uuid, p_min_role project_role",
+          "returns": "bool",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.user_has_project_role(p_project_id uuid, p_min_role project_role)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_user_role public.project_role;\r\n    v_role_order INTEGER;\r\n    v_min_role_order INTEGER;\r\nBEGIN\r\n    SELECT role INTO v_user_role\r\n    FROM public.project_members\r\n    WHERE project_id = p_project_id AND user_id = auth.uid();\r\n\r\n    IF v_user_role IS NULL THEN RETURN FALSE; END IF;\r\n\r\n    v_role_order := CASE v_user_role WHEN 'viewer' THEN 1 WHEN 'editor' THEN 2 WHEN 'owner' THEN 3 END;\r\n    v_min_role_order := CASE p_min_role WHEN 'viewer' THEN 1 WHEN 'editor' THEN 2 WHEN 'owner' THEN 3 END;\r\n\r\n    RETURN v_role_order >= v_min_role_order;\r\nEND;\r\n$function$\n"
+        }
+      ],
+      "function_privileges": [
+        {
+          "routine": "add_project_owner",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "create_app_credential",
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "create_app_credential",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "get_auth_user_project_ids",
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "get_auth_user_project_ids",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "get_submission_counts",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "handle_new_user",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "is_project_admin",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "is_project_owner",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "log_submission_change",
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "log_submission_change",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "user_has_project_role",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "table": "app_credentials",
+          "column": "created_by",
+          "references_table": "profiles",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "app_credentials",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "app_sessions",
+          "column": "credential_id",
+          "references_table": "app_credentials",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "app_sessions",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "crfs",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "crfs",
+          "column": "survey_package_id",
+          "references_table": "survey_packages",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "formchanges",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "formchanges",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "project_members",
+          "column": "invited_by",
+          "references_table": "profiles",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "project_members",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "project_members",
+          "column": "user_id",
+          "references_table": "profiles",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "projects",
+          "column": "created_by",
+          "references_table": "profiles",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "submissions",
+          "column": "crf_id",
+          "references_table": "crfs",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "submissions",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        },
+        {
+          "table": "submissions",
+          "column": "survey_package_id",
+          "references_table": "survey_packages",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "survey_packages",
+          "column": "created_by",
+          "references_table": "profiles",
+          "references_column": "id",
+          "delete_rule": "NO ACTION"
+        },
+        {
+          "table": "survey_packages",
+          "column": "project_id",
+          "references_table": "projects",
+          "references_column": "id",
+          "delete_rule": "CASCADE"
+        }
+      ],
+      "indexes": [
+        {
+          "table": "app_credentials",
+          "index": "app_credentials_pkey",
+          "definition": "CREATE UNIQUE INDEX app_credentials_pkey ON public.app_credentials USING btree (id)"
+        },
+        {
+          "table": "app_credentials",
+          "index": "app_credentials_project_id_username_key",
+          "definition": "CREATE UNIQUE INDEX app_credentials_project_id_username_key ON public.app_credentials USING btree (project_id, username)"
+        },
+        {
+          "table": "app_credentials",
+          "index": "idx_app_credentials_lookup",
+          "definition": "CREATE INDEX idx_app_credentials_lookup ON public.app_credentials USING btree (project_id, username, is_active)"
+        },
+        {
+          "table": "app_credentials",
+          "index": "idx_app_credentials_project",
+          "definition": "CREATE INDEX idx_app_credentials_project ON public.app_credentials USING btree (project_id)"
+        },
+        {
+          "table": "app_sessions",
+          "index": "app_sessions_pkey",
+          "definition": "CREATE UNIQUE INDEX app_sessions_pkey ON public.app_sessions USING btree (id)"
+        },
+        {
+          "table": "app_sessions",
+          "index": "app_sessions_token_key",
+          "definition": "CREATE UNIQUE INDEX app_sessions_token_key ON public.app_sessions USING btree (token)"
+        },
+        {
+          "table": "app_sessions",
+          "index": "idx_app_sessions_credential",
+          "definition": "CREATE INDEX idx_app_sessions_credential ON public.app_sessions USING btree (credential_id)"
+        },
+        {
+          "table": "app_sessions",
+          "index": "idx_app_sessions_expires",
+          "definition": "CREATE INDEX idx_app_sessions_expires ON public.app_sessions USING btree (expires_at)"
+        },
+        {
+          "table": "app_sessions",
+          "index": "idx_app_sessions_token",
+          "definition": "CREATE INDEX idx_app_sessions_token ON public.app_sessions USING btree (token)"
+        },
+        {
+          "table": "crfs",
+          "index": "crfs_pkey",
+          "definition": "CREATE UNIQUE INDEX crfs_pkey ON public.crfs USING btree (id)"
+        },
+        {
+          "table": "crfs",
+          "index": "crfs_survey_package_id_table_name_key",
+          "definition": "CREATE UNIQUE INDEX crfs_survey_package_id_table_name_key ON public.crfs USING btree (survey_package_id, table_name)"
+        },
+        {
+          "table": "crfs",
+          "index": "idx_crfs_project",
+          "definition": "CREATE INDEX idx_crfs_project ON public.crfs USING btree (project_id)"
+        },
+        {
+          "table": "crfs",
+          "index": "idx_crfs_survey_package",
+          "definition": "CREATE INDEX idx_crfs_survey_package ON public.crfs USING btree (survey_package_id)"
+        },
+        {
+          "table": "crfs",
+          "index": "idx_crfs_table_name",
+          "definition": "CREATE INDEX idx_crfs_table_name ON public.crfs USING btree (table_name)"
+        },
+        {
+          "table": "formchanges",
+          "index": "formchanges_formchanges_uuid_key",
+          "definition": "CREATE UNIQUE INDEX formchanges_formchanges_uuid_key ON public.formchanges USING btree (formchanges_uuid)"
+        },
+        {
+          "table": "formchanges",
+          "index": "formchanges_pkey",
+          "definition": "CREATE UNIQUE INDEX formchanges_pkey ON public.formchanges USING btree (id)"
+        },
+        {
+          "table": "formchanges",
+          "index": "idx_formchanges_project",
+          "definition": "CREATE INDEX idx_formchanges_project ON public.formchanges USING btree (project_id)"
+        },
+        {
+          "table": "formchanges",
+          "index": "idx_formchanges_record",
+          "definition": "CREATE INDEX idx_formchanges_record ON public.formchanges USING btree (record_uuid)"
+        },
+        {
+          "table": "formchanges",
+          "index": "idx_formchanges_uuid",
+          "definition": "CREATE INDEX idx_formchanges_uuid ON public.formchanges USING btree (formchanges_uuid)"
+        },
+        {
+          "table": "profiles",
+          "index": "profiles_pkey",
+          "definition": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+        },
+        {
+          "table": "project_members",
+          "index": "idx_project_members_project",
+          "definition": "CREATE INDEX idx_project_members_project ON public.project_members USING btree (project_id)"
+        },
+        {
+          "table": "project_members",
+          "index": "idx_project_members_user",
+          "definition": "CREATE INDEX idx_project_members_user ON public.project_members USING btree (user_id)"
+        },
+        {
+          "table": "project_members",
+          "index": "project_members_pkey",
+          "definition": "CREATE UNIQUE INDEX project_members_pkey ON public.project_members USING btree (id)"
+        },
+        {
+          "table": "project_members",
+          "index": "project_members_project_id_user_id_key",
+          "definition": "CREATE UNIQUE INDEX project_members_project_id_user_id_key ON public.project_members USING btree (project_id, user_id)"
+        },
+        {
+          "table": "projects",
+          "index": "idx_projects_created_by_slug",
+          "definition": "CREATE INDEX idx_projects_created_by_slug ON public.projects USING btree (created_by, slug)"
+        },
+        {
+          "table": "projects",
+          "index": "idx_projects_status",
+          "definition": "CREATE INDEX idx_projects_status ON public.projects USING btree (status)"
+        },
+        {
+          "table": "projects",
+          "index": "projects_created_by_slug_unique",
+          "definition": "CREATE UNIQUE INDEX projects_created_by_slug_unique ON public.projects USING btree (created_by, slug)"
+        },
+        {
+          "table": "projects",
+          "index": "projects_name_created_by_idx",
+          "definition": "CREATE UNIQUE INDEX projects_name_created_by_idx ON public.projects USING btree (created_by, lower(name))"
+        },
+        {
+          "table": "projects",
+          "index": "projects_pkey",
+          "definition": "CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)"
+        },
+        {
+          "table": "projects",
+          "index": "projects_slug_key",
+          "definition": "CREATE UNIQUE INDEX projects_slug_key ON public.projects USING btree (slug)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_collected",
+          "definition": "CREATE INDEX idx_submissions_collected ON public.submissions USING btree (project_id, collected_at)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_data",
+          "definition": "CREATE INDEX idx_submissions_data ON public.submissions USING gin (data)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_project_table",
+          "definition": "CREATE INDEX idx_submissions_project_table ON public.submissions USING btree (project_id, table_name)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_record",
+          "definition": "CREATE INDEX idx_submissions_record ON public.submissions USING btree (project_id, table_name, record_id)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_survey_package",
+          "definition": "CREATE INDEX idx_submissions_survey_package ON public.submissions USING btree (survey_package_id)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_surveyor",
+          "definition": "CREATE INDEX idx_submissions_surveyor ON public.submissions USING btree (project_id, surveyor_id)"
+        },
+        {
+          "table": "submissions",
+          "index": "idx_submissions_unique",
+          "definition": "CREATE UNIQUE INDEX idx_submissions_unique ON public.submissions USING btree (project_id, table_name, local_unique_id)"
+        },
+        {
+          "table": "submissions",
+          "index": "submissions_pkey",
+          "definition": "CREATE UNIQUE INDEX submissions_pkey ON public.submissions USING btree (id)"
+        },
+        {
+          "table": "survey_packages",
+          "index": "idx_survey_packages_project",
+          "definition": "CREATE INDEX idx_survey_packages_project ON public.survey_packages USING btree (project_id)"
+        },
+        {
+          "table": "survey_packages",
+          "index": "idx_survey_packages_status",
+          "definition": "CREATE INDEX idx_survey_packages_status ON public.survey_packages USING btree (status)"
+        },
+        {
+          "table": "survey_packages",
+          "index": "idx_survey_packages_version_date",
+          "definition": "CREATE INDEX idx_survey_packages_version_date ON public.survey_packages USING btree (version_date)"
+        },
+        {
+          "table": "survey_packages",
+          "index": "survey_packages_name_created_by_idx",
+          "definition": "CREATE UNIQUE INDEX survey_packages_name_created_by_idx ON public.survey_packages USING btree (created_by, lower(name))"
+        },
+        {
+          "table": "survey_packages",
+          "index": "survey_packages_pkey",
+          "definition": "CREATE UNIQUE INDEX survey_packages_pkey ON public.survey_packages USING btree (id)"
+        },
+        {
+          "table": "survey_packages",
+          "index": "survey_packages_project_id_name_key",
+          "definition": "CREATE UNIQUE INDEX survey_packages_project_id_name_key ON public.survey_packages USING btree (project_id, name)"
+        }
+      ],
+      "enums": [
+        {
+          "name": "project_role",
+          "values": [
+            "viewer",
+            "editor",
+            "admin",
+            "owner"
+          ]
+        },
+        {
+          "name": "survey_status",
+          "values": [
+            "draft",
+            "active",
+            "complete",
+            "archived"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "table": "projects",
+          "trigger": "on_project_created",
+          "event": "INSERT",
+          "timing": "AFTER",
+          "statement": "EXECUTE FUNCTION add_project_owner()"
+        }
+      ],
+      "extensions": [
+        {
+          "name": "pg_stat_statements",
+          "version": "1.11",
+          "schema": "extensions"
+        },
+        {
+          "name": "pgcrypto",
+          "version": "1.3",
+          "schema": "extensions"
+        },
+        {
+          "name": "plpgsql",
+          "version": "1.0",
+          "schema": "pg_catalog"
+        },
+        {
+          "name": "supabase_vault",
+          "version": "0.3.1",
+          "schema": "vault"
+        },
+        {
+          "name": "uuid-ossp",
+          "version": "1.1",
+          "schema": "extensions"
+        }
+      ]
+    }
+  }
+]

@@ -53,16 +53,19 @@ export const projectMemberService = {
 
   /**
    * Search for users by email or name (for adding to project)
-   * Searches both email and full_name fields with partial matching
+   * Searches both email and full_name fields with partial matching.
+   *
+   * Goes through a SECURITY DEFINER RPC rather than a direct `profiles`
+   * select -- profiles' RLS only allows reading your own profile or a
+   * profile that shares a project with you, since search intentionally
+   * needs to find people outside your projects too (see the
+   * 20260814_scope_profiles_visibility migration).
    */
   async searchUsersByEmail(searchTerm: string): Promise<UserSearchResult[]> {
     if (!searchTerm || searchTerm.length < 2) return [];
 
     const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .or(`email.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`)
-      .limit(20);
+      .rpc('search_profiles_for_invite', { p_search_term: searchTerm });
 
     if (error) {
       console.error('Error searching users:', error);
