@@ -90,10 +90,16 @@ serve(async (req) => {
             (surveys || []).map(async (survey) => {
                 let downloadUrl = null;
                 if (survey.zip_file_path) {
-                    const { data } = await supabase.storage
+                    const { data, error: signError } = await supabase.storage
                         .from("surveys")
                         .createSignedUrl(survey.zip_file_path, 86400);
-                    downloadUrl = data?.signedUrl;
+                    if (signError) {
+                        console.error(
+                            `Failed to sign URL for survey ${survey.id} (${survey.zip_file_path}):`,
+                            signError.message,
+                        );
+                    }
+                    downloadUrl = data?.signedUrl ?? null;
                 }
 
                 return {

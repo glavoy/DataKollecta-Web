@@ -726,16 +726,6 @@
         },
         {
           "table": "profiles",
-          "policy": "Authenticated users can search profiles for project membership",
-          "command": "SELECT",
-          "roles": [
-            "authenticated"
-          ],
-          "using_expr": "true",
-          "with_check": null
-        },
-        {
-          "table": "profiles",
           "policy": "Users can update own profile",
           "command": "UPDATE",
           "roles": [
@@ -752,6 +742,16 @@
             "public"
           ],
           "using_expr": "(auth.uid() = id)",
+          "with_check": null
+        },
+        {
+          "table": "profiles",
+          "policy": "Users can view profiles of people who share a project",
+          "command": "SELECT",
+          "roles": [
+            "authenticated"
+          ],
+          "using_expr": "((auth.uid() = id) OR (EXISTS ( SELECT 1\n   FROM project_members pm\n  WHERE ((pm.user_id = profiles.id) AND (pm.project_id IN ( SELECT get_auth_user_project_ids() AS get_auth_user_project_ids))))))",
           "with_check": null
         },
         {
@@ -2874,6 +2874,13 @@
           "definition": "CREATE OR REPLACE FUNCTION public.log_submission_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n    v_changed_fields JSONB;\r\nBEGIN\r\n    IF TG_OP = 'UPDATE' THEN\r\n        SELECT jsonb_agg(key)\r\n        INTO v_changed_fields\r\n        FROM jsonb_each(NEW.data)\r\n        WHERE NOT (OLD.data ? key AND OLD.data->key = NEW.data->key);\r\n    END IF;\r\n\r\n    INSERT INTO public.submission_history (\r\n        submission_id, data, version, change_type, changed_fields,\r\n        changed_by, changed_on_device, synced_at\r\n    ) VALUES (\r\n        NEW.id, NEW.data, NEW.version,\r\n        CASE WHEN TG_OP = 'INSERT' THEN 'created' WHEN TG_OP = 'UPDATE' THEN 'modified' END,\r\n        v_changed_fields, NEW.surveyor_id, NEW.device_id, NOW()\r\n    );\r\n    RETURN NEW;\r\nEND;\r\n$function$\n"
         },
         {
+          "name": "search_profiles_for_invite",
+          "args": "p_search_term text",
+          "returns": "record",
+          "security_definer": true,
+          "definition": "CREATE OR REPLACE FUNCTION public.search_profiles_for_invite(p_search_term text)\n RETURNS TABLE(id uuid, email text, full_name text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select p.id, p.email, p.full_name\r\n  from public.profiles p\r\n  where length(trim(p_search_term)) >= 2\r\n    and (p.email ilike '%' || p_search_term || '%'\r\n         or p.full_name ilike '%' || p_search_term || '%')\r\n  limit 20;\r\n$function$\n"
+        },
+        {
           "name": "user_has_project_role",
           "args": "p_project_id uuid, p_min_role project_role",
           "returns": "bool",
@@ -2926,7 +2933,19 @@
         },
         {
           "routine": "is_project_admin",
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "is_project_admin",
           "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "is_project_owner",
+          "grantee": "authenticated",
           "privilege": "EXECUTE",
           "is_grantable": false
         },
@@ -2944,6 +2963,24 @@
         },
         {
           "routine": "log_submission_change",
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "search_profiles_for_invite",
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "search_profiles_for_invite",
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "is_grantable": false
+        },
+        {
+          "routine": "search_profiles_for_invite",
           "grantee": "service_role",
           "privilege": "EXECUTE",
           "is_grantable": false
