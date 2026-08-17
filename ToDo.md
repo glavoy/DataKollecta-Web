@@ -20,7 +20,6 @@
 - add a 'whitelist' of email addresses that can login/create a user account on the website
 - on the login page, add option of viewing the password
 - when createing a form, don't allow 'keywords' - formerly automatic variables - starttime, etc.
-- Add functionality to view formchanges
 - When you click 'Revoke Access' for a user, it removes them immediately - need to have a confirmation dialog box
 - When modifying a survey - have temp/draft and then 'release' - keep track of who downlaoded it?
 - When a survey is inactive - users cannot download it

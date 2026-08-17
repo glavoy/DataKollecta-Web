@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import JSZip from "jszip";
+import { FormChangesView } from "@/components/FormChangesView";
 
 interface FormWithCount {
   id: string;
@@ -601,6 +602,14 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Edit history */}
+              {selectedRecord.local_unique_id && (
+                <div>
+                  <p className="text-sm font-medium mb-2">History</p>
+                  <FormChangesView recordUuid={selectedRecord.local_unique_id} />
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
