@@ -101,7 +101,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md -mt-80">
+      <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-6">
