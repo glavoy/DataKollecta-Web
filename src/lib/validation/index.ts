@@ -18,11 +18,15 @@
 import type { SurveyPackage } from '@/types/survey';
 import { buildReport, type Finding, type ValidationReport } from './types';
 import { referenceFindings } from './rules/references';
+import { identityFindings } from './rules/identity';
+import { shapeFindings } from './rules/shape';
 
 export function validatePackage(pkg: SurveyPackage): ValidationReport {
   const findings: Finding[] = [];
 
   for (const form of pkg.forms) {
+    findings.push(...identityFindings(form));
+    findings.push(...shapeFindings(form));
     findings.push(...referenceFindings(form));
   }
 
