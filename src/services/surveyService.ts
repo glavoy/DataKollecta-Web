@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { SurveyPackage, CsvFile } from "@/types/survey";
-import { generateManifestGistx, generateFormXml } from "@/lib/xmlGenerator";
+import { generateManifestGistx } from "@/lib/xml/manifest";
+import { buildSurveyZip } from "@/lib/xml/package";
+import { normalizeStoredQuestions } from "@/lib/xml/normalize";
 import JSZip from "jszip";
 
 export const surveyService = {
@@ -16,24 +18,10 @@ export const surveyService = {
     surveyName: string,
     status: 'draft' | 'active' | 'ready' = 'draft'
   ) {
-    // 1. Generate the Zip content
-    const zip = new JSZip();
+    // 1. Generate the Zip content -- same builder the download button uses, so
+    // what is stored and what a user downloads cannot drift apart.
     const manifestJson = generateManifestGistx(pkg);
-    zip.file('survey_manifest.gistx', manifestJson);
-
-    pkg.forms.forEach(form => {
-      const xml = generateFormXml(form);
-      zip.file(`${form.tablename}.xml`, xml);
-    });
-
-    // Add CSV files to the zip
-    if (pkg.csvFiles && pkg.csvFiles.length > 0) {
-      pkg.csvFiles.forEach(csvFile => {
-        zip.file(csvFile.filename, csvFile.content);
-      });
-    }
-
-    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const zipBlob = await buildSurveyZip(pkg);
 
     // 2. Upload Zip to Storage (Bucket: 'surveys')
     // Use surveyId as the filename (surveyId should include version info like geoff_css_2026-01-24)
@@ -74,10 +62,13 @@ export const surveyService = {
     for (const form of pkg.forms) {
       // Store form configuration including additional fields in the fields JSONB
       // We'll include form-level config as a special entry
+      // The crfs table has no columns for these, so they ride along inside
+      // id_config. See DESIGN.md for why this indirection exists.
       const formConfig = {
         incrementField: form.incrementField,
         repeatCountField: form.repeatCountField,
         entry_condition: form.entry_condition,
+        endOfQuestionsText: form.endOfQuestionsText,
       };
 
       const { error: crfError } = await supabase
@@ -188,7 +179,11 @@ export const surveyService = {
           idconfig: cleanIdConfig?.prefix !== undefined || cleanIdConfig?.fields?.length > 0
             ? cleanIdConfig
             : undefined,
-          questions: crf.fields || [],
+          // Upgrade on read: packages saved before the type model gained
+          // recursive calculations and an explicit response mode would
+          // otherwise emit XML the app misreads.
+          questions: normalizeStoredQuestions(crf.fields),
+          endOfQuestionsText: normalizeEmpty(formConfig.endOfQuestionsText),
           autoStartRepeat: typeof crf.auto_start_repeat === 'number' ? crf.auto_start_repeat : (crf.auto_start_repeat ? 1 : 0),
           repeatEnforceCount: crf.repeat_enforce_count || 1,
           primaryKey: normalizeEmpty(crf.primary_key),

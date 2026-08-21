@@ -34,6 +34,9 @@ dist-ssr
 md
 sql
 enrollee.xml
+# ...but the XML test fixtures are real SurveyGen output and must be tracked,
+# or the round-trip suite cannot run on a fresh clone.
+!src/lib/xml/__fixtures__/enrollee.xml
 
 # Windows null device file (created by some build tools)
 nul

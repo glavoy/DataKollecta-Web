@@ -40,7 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from "jszip";
-import { parseSurveyXml } from "@/lib/xmlParser";
+import { parseSurveyDocument } from "@/lib/xmlParser";
 import { surveyService } from "@/services/surveyService";
 import { projectMemberService } from "@/services/projectMemberService";
 
@@ -419,13 +419,17 @@ const ProjectDetail = () => {
         }
 
         const xmlContent = await xmlFile.async("string");
-        const questions = parseSurveyXml(xmlContent);
+        // Reserved system variables and the end screen are stripped here; they
+        // are re-added at generation time, so an imported package can be saved
+        // and re-exported without accumulating duplicates.
+        const { questions, endText } = parseSurveyDocument(xmlContent);
 
         // Store additional form config in id_config._formConfig for retrieval
         const formConfig = {
           incrementField: crfEntry.incrementfield,
           repeatCountField: crfEntry.repeat_count_field,
           entry_condition: crfEntry.entry_condition,
+          endOfQuestionsText: endText,
         };
 
         crfsToInsert.push({

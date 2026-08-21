@@ -1,0 +1,164 @@
+<?xml version = '1.0' encoding = 'utf-8'?>
+<survey>
+
+	<question type = 'automatic' fieldname = 'starttime' fieldtype = 'datetime'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'startdate' fieldtype = 'date'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'doy' fieldtype = 'text'>
+	</question>
+
+	<question type = 'text' fieldname = 'tricky_text' fieldtype = 'text'>
+		<text>Is a &lt; b &amp; c &gt; d? Don&apos;t guess -- say &quot;no&quot;.</text>
+		<maxCharacters>=3</maxCharacters>
+		<numeric_range>=4</numeric_range>
+		<mask value="R21[UB]-[0-9][0-9]" />
+	</question>
+
+	<question type = 'text' fieldname = 'zero_floor' fieldtype = 'text_integer'>
+		<text>A range whose floor is zero.</text>
+		<maxCharacters>3</maxCharacters>
+		<numeric_check>
+			<values minvalue ='0' maxvalue='120' other_values = '-7,-8' message = 'Number must be between 0 and 120!'></values>
+		</numeric_check>
+	</question>
+
+	<question type = 'radio' fieldname = 'zero_option' fieldtype = 'integer'>
+		<text>An option whose value is zero.</text>
+		<responses>
+			<response value = '0'>No</response>
+			<response value = '1'>Yes</response>
+		</responses>
+		<dont_know>-7</dont_know>
+		<refuse>-8</refuse>
+		<na>-6</na>
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_constant' fieldtype = 'text'>
+		<calculation type='constant' value='0' />
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_lookup' fieldtype = 'text'>
+		<calculation type='lookup' field='tricky_text' />
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_date_part' fieldtype = 'text'>
+		<calculation type='date_part' field='startdate' unit='doy' />
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_date_offset' fieldtype = 'date'>
+		<calculation type='date_offset' field='startdate' value='+28d' />
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_preserved' fieldtype = 'text'>
+		<calculation type='date_part' field='startdate' unit='yyyy' preserve='true' />
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_math' fieldtype = 'text_decimal'>
+		<calculation type='math' operator='*'>
+			<part type='lookup' field='zero_floor' />
+			<part type='constant' value='2' />
+		</calculation>
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_nested_math' fieldtype = 'text_decimal'>
+		<calculation type='math' operator='+'>
+			<part type='lookup' field='zero_floor' />
+			<part type='math' operator='*'>
+				<part type='lookup' field='zero_option' />
+				<part type='constant' value='3' />
+			</part>
+		</calculation>
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_concat' fieldtype = 'text'>
+		<calculation type='concat' separator='-'>
+			<part type='constant' value='GX' />
+			<part type='lookup' field='doy' />
+			<part type='concat' separator='/'>
+				<part type='lookup' field='zero_option' />
+				<part type='constant' value='0' />
+			</part>
+		</calculation>
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_case_nested' fieldtype = 'text'>
+		<calculation type='case'>
+			<when field='zero_option' operator='=' value='0'>
+				<result type='constant' value='0' />
+			</when>
+			<when field='zero_option' operator='&gt;=' value='1'>
+				<result type='math' operator='*'>
+					<part type='lookup' field='zero_floor' />
+					<part type='constant' value='10' />
+				</result>
+			</when>
+			<else>
+				<result type='lookup' field='zero_floor' />
+			</else>
+		</calculation>
+	</question>
+
+	<question type = 'automatic' fieldname = 'calc_query' fieldtype = 'text'>
+		<calculation type='query'>
+			<sql>SELECT group_concat(x) FROM t WHERE a = @a AND b != @b</sql>
+			<parameter name='@a' field='zero_option' />
+			<parameter name='@b' field='zero_floor' />
+		</calculation>
+	</question>
+
+	<question type = 'combobox' fieldname = 'village' fieldtype = 'text'>
+		<text>Village</text>
+		<responses source='csv' file='villages.csv'>
+			<filter column='districtid' operator='=' value='[[zero_option]]'/>
+			<filter column='mrcid' operator='!=' value='0'/>
+			<display column='mrc'/>
+			<value column='mrcid'/>
+			<distinct>true</distinct>
+			<empty_message>No villages found</empty_message>
+			<dont_know value='0' label='Unknown village'/>
+			<not_in_list value='-99' label='Other'/>
+		</responses>
+		<logic_check>
+			zero_floor &lt;&gt; 0 and (zero_option = 1 or
+			zero_option = 0);
+			'A message; with an awkward semicolon'
+		</logic_check>
+		<preskip>
+			<skip fieldname='zero_option' condition = '=' response='0' response_type='fixed' skiptofieldname ='tail_field'></skip>
+		</preskip>
+		<postskip>
+			<skip fieldname='zero_option' condition = 'contains' response='1' response_type='fixed' skiptofieldname ='tail_field'></skip>
+		</postskip>
+	</question>
+
+	<question type = 'text' fieldname = 'tail_field' fieldtype = 'text'>
+		<text>Last authored question.</text>
+		<maxCharacters>10</maxCharacters>
+		<unique_check>
+			<message>Must be unique</message>
+		</unique_check>
+	</question>
+
+	<question type = 'automatic' fieldname = 'uniqueid' fieldtype = 'text'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'swver' fieldtype = 'text'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'survey_id' fieldtype = 'text'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'lastmod' fieldtype = 'datetime'>
+	</question>
+
+	<question type = 'automatic' fieldname = 'stoptime' fieldtype = 'datetime'>
+	</question>
+
+	<question type = 'information' fieldname = 'end_of_questions' fieldtype = 'n/a'>
+		<text>Press the 'Finish' button to save the data.</text >
+	</question>
+
+</survey>

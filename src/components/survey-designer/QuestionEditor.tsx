@@ -126,6 +126,22 @@ const getAvailableFieldTypes = (questionType: QuestionType): { value: FieldType;
   return [{ value: getDefaultFieldType(questionType), label: getDefaultFieldType(questionType) }];
 };
 
+/** Renders the stored width back as the '=N' shorthand authors type. */
+const formatWidth = (value: number | undefined, fixed: boolean | undefined): string => {
+  if (value === undefined) return '';
+  return fixed ? `=${value}` : String(value);
+};
+
+/** '=10' -> exactly 10; '80' -> up to 80; anything else -> unset. */
+const parseWidth = (raw: string): { value: number | undefined; fixed: boolean | undefined } => {
+  const t = raw.trim();
+  if (t === '') return { value: undefined, fixed: undefined };
+  const fixed = t.startsWith('=');
+  const n = Number(fixed ? t.slice(1) : t);
+  if (!Number.isFinite(n)) return { value: undefined, fixed: undefined };
+  return { value: n, fixed: fixed || undefined };
+};
+
 const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: QuestionEditorProps) => {
   // Initialize synchronously from prop to avoid render flash/null issues
   const [editedQuestion, setEditedQuestion] = useState<SurveyQuestion | null>(() =>
@@ -295,8 +311,15 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: 
                 <div className="space-y-2">
                   <Label>Max Characters</Label>
                   <Input
-                    value={editedQuestion.maxCharacters ?? ''}
-                    onChange={(e) => update('maxCharacters', e.target.value || undefined)}
+                    value={formatWidth(editedQuestion.maxCharacters, editedQuestion.fixedLength)}
+                    onChange={(e) => {
+                      // The '=' prefix is UI shorthand for "exactly this many",
+                      // stored as a separate flag rather than inside the number.
+                      const { value, fixed } = parseWidth(e.target.value);
+                      setEditedQuestion((prev) =>
+                        prev ? { ...prev, maxCharacters: value, fixedLength: fixed } : null,
+                      );
+                    }}
                     placeholder="e.g., 80 or =10 for exact length"
                   />
                   <p className="text-xs text-muted-foreground">

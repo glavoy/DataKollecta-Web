@@ -1,0 +1,37 @@
+{
+  "surveyName": "AVERT UG 2026-07-13",
+  "surveyId": "avert_ug_2026_07-13",
+  "databaseName": "avert_ug_2026_07-13.sqlite",
+  "xmlFiles": [
+    "enrollee.xml",
+    "vaccination_status.xml"
+  ],
+  "crfs": [
+    {
+      "display_order": 10,
+      "tablename": "enrollee",
+      "displayname": "Enrollee",
+      "isbase": 1,
+      "primarykey": "subjid",
+      "linkingfield": "barcode",
+      "idconfig": {
+        "prefix": "",
+        "fields": [{"name":"country","length":1},{"name":"deviceid","length":3},{"name":"mrc","length":3}],
+        "incrementLength": 4
+      },
+      "display_fields": "startdate,participantsname"
+    },
+    {
+      "display_order": 20,
+      "tablename": "vaccination_status",
+      "displayname": "Vaccination Status",
+      "isbase": 0,
+      "primarykey": "barcode",
+      "linkingfield": "barcode",
+      "parenttable": "enrollee",
+      "requireslink": 1,
+      "display_fields": "barcode,participantsname",
+      "entry_condition": "need_vac_cov=1"
+    }
+  ]
+}

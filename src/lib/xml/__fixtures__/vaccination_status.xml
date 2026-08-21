@@ -1,0 +1,492 @@
+<?xml version = '1.0' encoding = 'utf-8'?>
+<survey>
+
+
+	<question type = 'automatic' fieldname = 'starttime' fieldtype = 'datetime'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'startdate' fieldtype = 'date'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'barcode' fieldtype = 'text'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'dob' fieldtype = 'date'>
+		<calculation type='query'>
+			<sql>SELECT dob FROM enrollee WHERE barcode = @barcode</sql>
+			<parameter name='@barcode' field='barcode' />
+		</calculation>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'participantsname' fieldtype = 'text'>
+		<calculation type='query'>
+			<sql>SELECT participantsname FROM enrollee WHERE barcode = @barcode</sql>
+			<parameter name='@barcode' field='barcode' />
+		</calculation>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'country' fieldtype = 'integer'>
+		<calculation type='query'>
+			<sql>SELECT country FROM enrollee WHERE @barcode = barcode</sql>
+			<parameter name='@barcode' field='barcode' />
+		</calculation>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'cov_where' fieldtype = 'integer'>
+		<text>Where is the interview being conducted?</text>
+		<responses>
+			<response value = '1'>Home</response>
+			<response value = '2'>Clinic</response>
+		</responses>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_card' fieldtype = 'integer'>
+		<text>Does the parent or guardian have a vaccine card for [[participantsname]]?</text>
+		<responses>
+			<response value = '1'>Yes</response>
+			<response value = '0'>No</response>
+		</responses>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_card_no' fieldtype = 'integer'>
+		<text>Why does the parent NOT have a vaccine card?</text>
+		<responses>
+			<response value = '2'>Was not given a card</response>
+			<response value = '3'>Card was misplaced/lost</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_card' condition = '&lt;&gt;' response='0' response_type='fixed' skiptofieldname ='vx_doses_received_rtss'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_card_no_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+		<preskip>
+			<skip fieldname='vx_card_no' condition = '=' response='2' response_type='fixed' skiptofieldname ='comments'></skip>
+			<skip fieldname='vx_card_no' condition = '=' response='3' response_type='fixed' skiptofieldname ='vx_card_no_resched'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_card_no_resched' fieldtype = 'integer'>
+		<text>Will the parent/guardian be able to find the card such that another home visit will be useful?</text>
+		<responses>
+			<response value = '1'>Yes</response>
+			<response value = '0'>No</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_card_no' condition = '=' response='96' response_type='fixed' skiptofieldname ='comments'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_doses_received_rtss' fieldtype = 'integer'>
+		<text>Has [[participantsname]] received any doses of the RTS,S malaria vaccine?
+
+NOTE THIS IS A DIFFERENT MALARIA VACCINE.
+
+(Only record if vaccine card verified.)</text>
+		<responses>
+			<response value = '0'>0</response>
+			<response value = '1'>1</response>
+			<response value = '2'>2</response>
+			<response value = '3'>3</response>
+			<response value = '4'>4</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_card_no' condition = '=' response='3' response_type='fixed' skiptofieldname ='comments'></skip>
+			<skip fieldname='country' condition = '=' response='1' response_type='fixed' skiptofieldname ='vx_any'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'information' fieldname = 'vx_doses_received_note_rtss' fieldtype = 'n/a'>
+		<text>Thank you for your time today. [[participantsname]] is no longer eligible for this study because they have received a dose of RTS,S a different malaria vaccine.
+
+(End of survey)</text>
+		<preskip>
+			<skip fieldname='vx_doses_received_rtss' condition = '=' response='0' response_type='fixed' skiptofieldname ='vx_any'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_any' fieldtype = 'integer'>
+		<text>Has [[participantsname]] received any doses of the R21 malaria vaccine?</text>
+		<responses>
+			<response value = '1'>Yes</response>
+			<response value = '0'>No</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_doses_received_rtss' condition = '&gt;' response='0' response_type='fixed' skiptofieldname ='comments'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_any_no' fieldtype = 'integer'>
+		<text>Why did [[participantsname]] not received the malaria vaccine?</text>
+		<responses>
+			<response value = '1'>Parent reports child ineligible</response>
+			<response value = '2'>Vaccine not available</response>
+			<response value = '3'>Could not travel to clinic</response>
+			<response value = '4'>Refused/Did not want</response>
+			<response value = '5'>Did not know</response>
+			<response value = '6'>Health worker shared wrong information on dose or schedule</response>
+			<response value = '7'>Child was sick and/or admitted</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_doses_received_rtss' condition = '&gt;' response='0' response_type='fixed' skiptofieldname ='comments'></skip>
+			<skip fieldname='vx_any' condition = '=' response='1' response_type='fixed' skiptofieldname ='vx_doses_received'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_any_no_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+		<preskip>
+			<skip fieldname='vx_any_no' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='comments'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_doses_received' fieldtype = 'integer'>
+		<text>As of today's date, how many doses of R21 malaria vaccine has [[participantsname]] received?</text>
+		<maxCharacters>1</maxCharacters>
+		<numeric_check>
+			<values minvalue ='1' maxvalue='4' other_values = '1' message = 'Number must be between 1 and 4!'></values>
+		</numeric_check>
+		<preskip>
+			<skip fieldname='vx_any' condition = '=' response='0' response_type='fixed' skiptofieldname ='comments'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose1_where' fieldtype = 'integer'>
+		<text>Where was dose 1 received? (Select one)</text>
+		<responses>
+			<response value = '1'>Health post or health center</response>
+			<response value = '2'>Community/Village location</response>
+			<response value = '96'>Other</response>
+		</responses>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_dose1_where_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+		<preskip>
+			<skip fieldname='vx_dose1_where' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='vx_dose1_date'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'date' fieldname = 'vx_dose1_date' fieldtype = 'date'>
+		<text>On what date was dose 1 of the malaria vaccine received?</text>
+		<date_range>
+			<min_date>2025-03-01</min_date>
+			<max_date>0</max_date>
+		</date_range>
+		<logic_check>
+			vx_dose1_date &lt; dob; 'Date of vaccination cannot be before date of birth!'
+		</logic_check>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose2_where' fieldtype = 'integer'>
+		<text>Where was dose 2 received?</text>
+		<responses>
+			<response value = '1'>Health post or health center</response>
+			<response value = '2'>Community/Village location</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_doses_received' condition = '&lt;' response='2' response_type='fixed' skiptofieldname ='vx_dose_summary'></skip>
+		</preskip>
+		<postskip>
+			<skip fieldname='vx_dose2_where' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='vx_dose2_date'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_dose2_where_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'date' fieldname = 'vx_dose2_date' fieldtype = 'date'>
+		<text>On what date was dose 2 of the malaria vaccine received?</text>
+		<date_range>
+			<min_date>2025-03-01</min_date>
+			<max_date>0</max_date>
+		</date_range>
+		<logic_check>
+			vx_dose2_date &lt;= vx_dose1_date; 'Date of dose 2 cannot be on or before date of dose 1'
+		</logic_check>
+		<logic_check>
+			vx_dose2_date &lt; dob; 'Date of vaccination cannot be before date of birth!'
+		</logic_check>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'dose2_warning_time' fieldtype = 'integer'>
+		<calculation type='date_diff' field='vx_dose1_date' value='vx_dose2_date' unit='w' />
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose2_datecheck' fieldtype = 'integer'>
+		<text>WARNING!
+
+Dose 2 is less than 3 weeks after dose 1. Is this correct?
+Otherwise go back and correct the dose dates</text>
+		<responses>
+			<response value = '1'>Yes - proceed</response>
+		</responses>
+		<preskip>
+			<skip fieldname='dose2_warning_time' condition = '&gt;=' response='3' response_type='fixed' skiptofieldname ='vx_dose3_where'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose3_where' fieldtype = 'integer'>
+		<text>Where was dose 3 received?</text>
+		<responses>
+			<response value = '1'>Health post or health center</response>
+			<response value = '2'>Community/Village location</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_doses_received' condition = '&lt;' response='3' response_type='fixed' skiptofieldname ='vx_dose_summary'></skip>
+		</preskip>
+		<postskip>
+			<skip fieldname='vx_dose3_where' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='vx_dose3_date'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_dose3_where_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'date' fieldname = 'vx_dose3_date' fieldtype = 'date'>
+		<text>On what date was dose 3 of the malaria vaccine received?</text>
+		<date_range>
+			<min_date>2025-03-01</min_date>
+			<max_date>0</max_date>
+		</date_range>
+		<logic_check>
+			vx_dose3_date &lt;= vx_dose2_date; 'Date of dose 3 cannot be on or before date of dose 2'
+		</logic_check>
+		<logic_check>
+			vx_dose3_date &lt; dob; 'Date of vaccination cannot be before date of birth!'
+		</logic_check>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'dose3_warning_time' fieldtype = 'integer'>
+		<calculation type='date_diff' field='vx_dose2_date' value='vx_dose3_date' unit='w' />
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose3_datecheck' fieldtype = 'integer'>
+		<text>WARNING!
+
+Dose 3 is less than 4 weeks after dose 2. Is this correct?
+Otherwise go back and correct the dose dates</text>
+		<responses>
+			<response value = '1'>Yes - proceed</response>
+		</responses>
+		<preskip>
+			<skip fieldname='dose3_warning_time' condition = '&gt;=' response='4' response_type='fixed' skiptofieldname ='vx_dose4_where'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose4_where' fieldtype = 'integer'>
+		<text>Where was dose 4 received?</text>
+		<responses>
+			<response value = '1'>Health post or health center</response>
+			<response value = '2'>Community/Village location</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<preskip>
+			<skip fieldname='vx_doses_received' condition = '&lt;' response='4' response_type='fixed' skiptofieldname ='vx_dose_summary'></skip>
+		</preskip>
+		<postskip>
+			<skip fieldname='vx_dose4_where' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='vx_dose4_date'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_dose4_where_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'date' fieldname = 'vx_dose4_date' fieldtype = 'date'>
+		<text>On what date was dose 4 of the malaria vaccine received?</text>
+		<date_range>
+			<min_date>2025-03-01</min_date>
+			<max_date>0</max_date>
+		</date_range>
+		<logic_check>
+			vx_dose4_date &lt;= vx_dose3_date; 'Date of dose 4 cannot be on or before date of dose 3'
+		</logic_check>
+		<logic_check>
+			vx_dose4_date &lt; dob; 'Date of vaccination cannot be before date of birth!'
+		</logic_check>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'dose4_warning_time' fieldtype = 'integer'>
+		<calculation type='date_diff' field='vx_dose3_date' value='vx_dose4_date' unit='m' />
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose4_datecheck' fieldtype = 'integer'>
+		<text>WARNING!
+
+Dose 4 (booster) is less than ten months after dose 3. Is this correct?
+Otherwise go back and correct the dose dates</text>
+		<responses>
+			<response value = '1'>Yes - proceed</response>
+		</responses>
+		<preskip>
+			<skip fieldname='dose4_warning_time' condition = '&gt;=' response='10' response_type='fixed' skiptofieldname ='vx_dose_summary'></skip>
+		</preskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose_summary' fieldtype = 'integer'>
+		<text>Review and confirm the dates you have entered for malaria vaccine doses.
+
+If any date is incorrect, please go back and correct it.
+
+        (Year–Month–Day)
+Dose 1: [[vx_dose1_date]]
+Dose 2: [[vx_dose2_date]]
+Dose 3: [[vx_dose3_date]]
+Dose 4: [[vx_dose4_date]]</text>
+		<responses>
+			<response value = '1'>Yes, dates are correct</response>
+		</responses>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_doses_miss' fieldtype = 'integer'>
+		<text>Have any doses been missed since starting the vaccine series? (Confirm the age and timing of previous doses to assess this to discuss with the parent).</text>
+		<responses>
+			<response value = '1'>Yes</response>
+			<response value = '0'>No</response>
+		</responses>
+		<postskip>
+			<skip fieldname='vx_doses_miss' condition = '=' response='0' response_type='fixed' skiptofieldname ='vx_dose_off_sched'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_doses_miss_reas' fieldtype = 'integer'>
+		<text>What was the primary reason the doses were missed?</text>
+		<responses>
+			<response value = '1'>Vaccine not available</response>
+			<response value = '2'>Could not travel to clinic</response>
+			<response value = '3'>Refused/Did not want</response>
+			<response value = '4'>Did not know</response>
+			<response value = '5'>Health worker shared wrong information on dose or schedule</response>
+			<response value = '6'>Child was sick and/or admitted</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<postskip>
+			<skip fieldname='vx_doses_miss_reas' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='vx_dose_off_sched'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_doses_miss_reas_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_dose_off_sched' fieldtype = 'integer'>
+		<text>Other than missed doses, have any doses been received more than 2 weeks off-schedule since starting the vaccine series (early or late)?</text>
+		<responses>
+			<response value = '1'>Yes</response>
+			<response value = '0'>No</response>
+		</responses>
+		<postskip>
+			<skip fieldname='vx_dose_off_sched' condition = '=' response='0' response_type='fixed' skiptofieldname ='comments'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'radio' fieldname = 'vx_doses_offsched_reas' fieldtype = 'integer'>
+		<text>What was the primary reason for off-schedule doses?</text>
+		<responses>
+			<response value = '1'>Vaccine not available</response>
+			<response value = '2'>Could not travel to clinic</response>
+			<response value = '3'>Refused/Did not want</response>
+			<response value = '4'>Did not know</response>
+			<response value = '5'>Health worker shared wrong information on dose or schedule</response>
+			<response value = '6'>Child was sick and/or admitted</response>
+			<response value = '96'>Other</response>
+		</responses>
+		<postskip>
+			<skip fieldname='vx_doses_offsched_reas' condition = '&lt;&gt;' response='96' response_type='fixed' skiptofieldname ='comments'></skip>
+		</postskip>
+	</question>
+
+
+	<question type = 'text' fieldname = 'vx_offsched_miss_reas_oth' fieldtype = 'text'>
+		<text>Specify other:</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'text' fieldname = 'comments' fieldtype = 'text'>
+		<text>Comments (optional)</text>
+		<maxCharacters>80</maxCharacters>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'uniqueid' fieldtype = 'text'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'swver' fieldtype = 'text'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'survey_id' fieldtype = 'text'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'lastmod' fieldtype = 'datetime'>
+	</question>
+
+
+	<question type = 'automatic' fieldname = 'stoptime' fieldtype = 'datetime'>
+	</question>
+
+
+	<question type = 'information' fieldname = 'end_of_questions' fieldtype = 'n/a'>
+		<text>Press the 'Finish' button to save the data.</text >
+	</question>
+
+
+</survey>
