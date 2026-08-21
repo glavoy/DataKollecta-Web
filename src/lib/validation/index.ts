@@ -6,9 +6,10 @@
  * checked against every rule module, rolled into one `ValidationReport`.
  *
  * Rule modules land incrementally -- see the plan this engine was built
- * from. Still missing: formManifest.ts and packageRules.ts (cross-form
- * concerns SurveyGen has no equivalent for at all, since it only ever
- * validates one worksheet in isolation).
+ * from. This wires every module now landed: per-question identity/shape/
+ * responses/calculation/reference rules, per-form manifest field checks, and
+ * the cross-form package rules SurveyGen has no equivalent for at all, since
+ * it only ever validates one worksheet in isolation.
  */
 
 import type { SurveyPackage } from '@/types/survey';
@@ -18,6 +19,8 @@ import { identityFindings } from './rules/identity';
 import { shapeFindings } from './rules/shape';
 import { responsesFindings } from './rules/responses';
 import { calculationFindings } from './rules/calculation';
+import { formManifestFindings } from './rules/formManifest';
+import { packageFindings } from './rules/packageRules';
 
 export function validatePackage(pkg: SurveyPackage): ValidationReport {
   const findings: Finding[] = [];
@@ -29,7 +32,9 @@ export function validatePackage(pkg: SurveyPackage): ValidationReport {
     findings.push(...responsesFindings(form, csvFilenames));
     findings.push(...calculationFindings(form));
     findings.push(...referenceFindings(form));
+    findings.push(...formManifestFindings(form));
   }
+  findings.push(...packageFindings(pkg));
 
   return buildReport(findings);
 }

@@ -36,7 +36,8 @@ export interface SurveyManifest {
   crfs: Record<string, unknown>[];
 }
 
-function isBaseForm(form: SurveyForm): boolean {
+/** Exported so the validation engine's base-form-count rule agrees with what actually gets emitted. */
+export function isBaseForm(form: SurveyForm): boolean {
   return form.isBase ?? !form.parenttable;
 }
 
