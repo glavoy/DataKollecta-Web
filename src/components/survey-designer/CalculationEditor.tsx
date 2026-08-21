@@ -43,8 +43,27 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
     q.fieldtype === 'date' || q.fieldtype === 'datetime'
   );
 
+  /**
+   * Defaults baked into real state the moment a type is chosen -- not just
+   * displayed as a Select's fallback label. A Select bound to
+   * `calculation.unit || 'yyyy'` LOOKS pre-set to the sensible default, but if
+   * the user's choice already matches that label they never trigger
+   * onValueChange, so the underlying value stays undefined. For most types the
+   * app falls back sensibly at read time too, so this was invisible; for
+   * date_part there is no such fallback (auto_fields.dart returns '' for an
+   * unrecognized/absent unit), so an untouched dropdown silently shipped a
+   * calculation that always computes to nothing. Found by hand-building a
+   * survey with the designer and inspecting the generated XML.
+   */
   const handleTypeChange = (type: CalculationConfig['type']) => {
-    onChange({ type });
+    const defaults: Partial<Record<CalculationConfig['type'], CalculationConfig>> = {
+      age_at_date: { type, value: 'years' },
+      age_from_date: { type, unit: 'y' },
+      date_diff: { type, unit: 'd' },
+      date_part: { type, unit: 'yyyy' },
+      math: { type, operator: '+' },
+    };
+    onChange(defaults[type] ?? { type });
   };
 
   const addCase = () => {
