@@ -9,13 +9,16 @@ export type QuestionType =
   | 'calculated'
   | 'button';
 
+/**
+ * `text_id` and `phone_num` were retired -- both behaved exactly like `text`
+ * in the app, no survey used them, and SurveyGen (the Excel path) already
+ * rejects them. A phone number is `text_integer` with a fixed length (`=10`).
+ */
 export type FieldType =
   | 'text'
   | 'integer'
   | 'text_integer'
   | 'text_decimal'
-  | 'text_id'
-  | 'phone_num'
   | 'hourmin'
   | 'date'
   | 'datetime'

@@ -45,7 +45,7 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
   const isInformation = questionType === 'information';
   const isButton = questionType === 'button';
   const isNumericField = ['text_integer', 'text_decimal'].includes(fieldType);
-  const needsMaxChars = ['text', 'text_integer', 'text_decimal', 'text_id', 'phone_num', 'hourmin'].includes(fieldType);
+  const needsMaxChars = ['text', 'text_integer', 'text_decimal', 'hourmin'].includes(fieldType);
 
   return {
     // Basic tab options
@@ -103,8 +103,6 @@ const getAvailableFieldTypes = (questionType: QuestionType): { value: FieldType;
       { value: 'text', label: 'Text' },
       { value: 'text_integer', label: 'Integer (numeric input)' },
       { value: 'text_decimal', label: 'Decimal (numeric input)' },
-      { value: 'text_id', label: 'ID/Identifier' },
-      { value: 'phone_num', label: 'Phone Number' },
       { value: 'hourmin', label: 'Hour:Minute' },
     ];
   }
@@ -116,7 +114,13 @@ const getAvailableFieldTypes = (questionType: QuestionType): { value: FieldType;
       { value: 'date', label: 'Date' },
     ];
   }
-  if (questionType === 'radio' || questionType === 'combobox') {
+  if (questionType === 'radio') {
+    // The app stores a radio's answer as `integer`; `text` was offered here
+    // but SurveyGen has always rejected it (radio requires integer), so this
+    // dropdown was letting the designer author what the Excel path refuses.
+    return [{ value: 'integer', label: 'Integer' }];
+  }
+  if (questionType === 'combobox') {
     return [
       { value: 'integer', label: 'Integer' },
       { value: 'text', label: 'Text' },
