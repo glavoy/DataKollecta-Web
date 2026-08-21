@@ -23,6 +23,49 @@ const formOf = (questions: SurveyQuestion[]): SurveyForm => ({
   questions,
 });
 
+describe('QuestionType x FieldType pairing', () => {
+  it('allows integer on a text question, despite excel_reader.py currently rejecting it', () => {
+    // The real SurveyGen sample this engine validates against
+    // (enrollee.xml) uses type='text' fieldtype='integer' more than twenty
+    // times -- direct evidence overriding what the doc/source reads,
+    // found by clean.test.ts blocking a real, already-shipped survey.
+    const findings = shapeFindings(formOf([q({ type: 'text', fieldtype: 'integer' as never, maxCharacters: 3 })]));
+    expect(findings.filter((f) => f.ruleId === RULE.fieldTypeInvalidForQuestionType)).toEqual([]);
+  });
+
+  it('requires integer on a radio question', () => {
+    const findings = shapeFindings(
+      formOf([q({ type: 'radio', fieldtype: 'text' as never, responses: [{ id: 'r1', value: '1', label: 'Yes' }] })]),
+    );
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: RULE.fieldTypeInvalidForQuestionType, subject: 'text' }),
+    );
+  });
+
+  it('requires text on a checkbox question', () => {
+    const findings = shapeFindings(formOf([q({ type: 'checkbox', fieldtype: 'integer' as never })]));
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: RULE.fieldTypeInvalidForQuestionType, subject: 'integer' }),
+    );
+  });
+
+  it('requires date or datetime on a date/datetime question', () => {
+    const findings = shapeFindings(formOf([q({ type: 'date', fieldtype: 'text' as never })]));
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: RULE.fieldTypeInvalidForQuestionType }));
+  });
+
+  it('leaves combobox, information, and calculated unconstrained, matching SurveyGen', () => {
+    const findings = shapeFindings(
+      formOf([
+        q({ type: 'combobox', fieldtype: 'text', responses: [{ id: 'r1', value: '1', label: 'Yes' }] }),
+        q({ type: 'information', fieldtype: 'n/a', text: 'Info' }),
+        q({ type: 'calculated', fieldtype: 'integer', text: '' }),
+      ]),
+    );
+    expect(findings.filter((f) => f.ruleId === RULE.fieldTypeInvalidForQuestionType)).toEqual([]);
+  });
+});
+
 describe('max characters', () => {
   it('requires it on a plain text question', () => {
     const findings = shapeFindings(formOf([q({ fieldtype: 'text', maxCharacters: undefined })]));

@@ -20,6 +20,53 @@ import { RULE, type Finding } from '../types';
 const OFFSET_RE = /^[+-]\d+[dwmy]$/;
 const HARDCODED_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Ported from `_check_question_field_type`: which field types a question
+ * type may carry. `combobox`/`information`/`calculated` are unconstrained,
+ * matching SurveyGen. The designer's own dropdowns (`getAvailableFieldTypes`)
+ * already enforce this at authoring time; this rule is the backstop for
+ * legacy or imported data the dropdown never touched.
+ *
+ * `excel_reader.py`'s current `TYPED_FIELD_TYPES` excludes `integer` from a
+ * `text` question -- but the real SurveyGen sample this engine's own tests
+ * validate against (`enrollee.xml`, genuine production output) uses
+ * `type='text' fieldtype='integer'` more than twenty times (deviceid, age,
+ * npeople, ...). Rather than a stale doc read, that's direct evidence the
+ * rule as currently written in SurveyGen would reject dictionaries the
+ * ecosystem already ships at scale -- possibly a newer, stricter check than
+ * whatever generated this sample. The app has no functional dependency on
+ * the distinction either (`fieldtype` never drives a SQLite column type),
+ * so `integer` is allowed here rather than porting a rule caught blocking a
+ * real survey by `clean.test.ts`.
+ */
+const ALLOWED_FIELD_TYPES: Partial<Record<SurveyQuestion['type'], readonly SurveyQuestion['fieldtype'][]>> = {
+  text: ['text', 'text_integer', 'text_decimal', 'hourmin', 'integer'],
+  radio: ['integer'],
+  checkbox: ['text'],
+  date: ['date', 'datetime'],
+  datetime: ['date', 'datetime'],
+};
+
+function fieldTypeFindings(q: SurveyQuestion, index: number): Finding[] {
+  const allowed = ALLOWED_FIELD_TYPES[q.type];
+  if (!allowed || allowed.includes(q.fieldtype)) return [];
+
+  return [
+    {
+      scope: 'question',
+      questionId: q.id,
+      questionIndex: index,
+      fieldname: q.fieldname,
+      part: 'identity',
+      ruleId: RULE.fieldTypeInvalidForQuestionType,
+      severity: 'error',
+      subject: q.fieldtype,
+      message: `A ${q.type} question cannot use the data type '${q.fieldtype}'.`,
+      hint: `Use one of: ${allowed.join(', ')}.`,
+    },
+  ];
+}
+
 /** '0', a signed offset ('+6m', '-1y'), or a real calendar date. */
 function isValidDateBound(value: string): boolean {
   const v = value.trim();
@@ -227,6 +274,7 @@ export function shapeFindings(form: SurveyForm): Finding[] {
   const findings: Finding[] = [];
 
   form.questions.forEach((q, index) => {
+    findings.push(...fieldTypeFindings(q, index));
     findings.push(...widthFindings(q, index));
     findings.push(...numericRangeFindings(q, index));
     findings.push(...dateRangeFindings(q, index));
