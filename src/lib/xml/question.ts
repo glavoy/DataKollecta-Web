@@ -57,8 +57,19 @@ export const toModelType = (t: string): QuestionType =>
 // Emit
 // ---------------------------------------------------------------------------
 
+/**
+ * Which response block will actually be emitted for a question whose
+ * `responseMode` wasn't explicitly set. Exported so the validation engine
+ * checks the same default this generator uses -- a validator that disagreed
+ * with the emitter about what will be emitted would be worse than no
+ * validator at all.
+ */
+export function resolvedResponseMode(q: SurveyQuestion): 'static' | 'dynamic' {
+  return q.responseMode ?? (q.dynamicResponses ? 'dynamic' : 'static');
+}
+
 function emitResponses(q: SurveyQuestion): XmlElement | undefined {
-  const mode = q.responseMode ?? (q.dynamicResponses ? 'dynamic' : 'static');
+  const mode = resolvedResponseMode(q);
 
   if (mode === 'dynamic' && q.dynamicResponses) {
     const dr = q.dynamicResponses;
