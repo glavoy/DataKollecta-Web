@@ -155,7 +155,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
 
     const visibleFields = selectedForm.fields.filter((field: any) => {
       const type = field.type?.toLowerCase();
-      if (type === 'information' || type === 'button') return false;
+      if (type === 'information') return false;
       return true;
     });
 

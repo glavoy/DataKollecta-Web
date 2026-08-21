@@ -43,7 +43,6 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
   const isDateType = ['date', 'datetime'].includes(questionType);
   const isCalculated = questionType === 'calculated';
   const isInformation = questionType === 'information';
-  const isButton = questionType === 'button';
   const isNumericField = ['text_integer', 'text_decimal'].includes(fieldType);
   const needsMaxChars = ['text', 'text_integer', 'text_decimal', 'hourmin'].includes(fieldType);
 
@@ -51,7 +50,7 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
     // Basic tab options
     showMaxCharacters: isTextInput && needsMaxChars,
     showMask: isTextInput,
-    showDontKnowRefuseNa: !isInformation && !isCalculated && !isButton,
+    showDontKnowRefuseNa: !isInformation && !isCalculated,
 
     // Responses tab
     showResponses: isSelectType,
@@ -60,11 +59,11 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
     // Validation tab
     showNumericCheck: isTextInput && isNumericField,
     showDateRange: isDateType,
-    showLogicCheck: !isInformation && !isButton,
+    showLogicCheck: !isInformation,
     showUniqueCheck: isTextInput,
 
     // Skip Logic tab
-    showSkipLogic: !isButton,
+    showSkipLogic: true,
 
     // Whether to show field type selector (or auto-set)
     allowFieldTypeEdit: isTextInput || isCalculated,
@@ -86,8 +85,6 @@ const getDefaultFieldType = (questionType: QuestionType): FieldType => {
       return 'n/a';
     case 'calculated':
       return 'integer';
-    case 'button':
-      return 'n/a';
     case 'combobox':
       return 'text';
     case 'text':
@@ -197,7 +194,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: 
         updated.calculation = undefined;
       }
       // Clear validation options that don't apply
-      if (['information', 'button'].includes(newType)) {
+      if (newType === 'information') {
         updated.dontKnow = undefined;
         updated.refuse = undefined;
         updated.na = undefined;
@@ -258,7 +255,6 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: 
                     <SelectItem value="datetime">Date & Time</SelectItem>
                     <SelectItem value="information">Information (Read-only)</SelectItem>
                     <SelectItem value="calculated">Calculated (Auto-computed)</SelectItem>
-                    <SelectItem value="button">Button (Action)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

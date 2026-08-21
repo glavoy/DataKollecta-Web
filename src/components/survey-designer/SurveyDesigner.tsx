@@ -73,8 +73,6 @@ const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] =>
       return 'n/a';
     case 'calculated':
       return 'integer';
-    case 'button':
-      return 'n/a';
     case 'combobox':
       return 'text';
     case 'text':

@@ -43,7 +43,10 @@ const MODEL_QUESTION_TYPE: Record<string, QuestionType> = {
   date: 'date',
   datetime: 'datetime',
   information: 'information',
-  button: 'button',
+  // No 'button' mapping: the type was retired (see QuestionType in
+  // survey.ts) and the app's own parseQuestionType has never had a case for
+  // it either -- an incoming type='button' from an old file falls through
+  // to the same 'information' default the app itself uses.
 };
 
 export const toWireType = (t: QuestionType): string => WIRE_QUESTION_TYPE[t] ?? t;

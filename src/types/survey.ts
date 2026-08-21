@@ -1,3 +1,9 @@
+/**
+ * `button` was retired -- the app's own `parseQuestionType` has never had a
+ * case for it (it silently fell through to `information`), and SurveyGen
+ * validated it as if it were a real, working question type when it never
+ * was.
+ */
 export type QuestionType =
   | 'text'
   | 'radio'
@@ -6,8 +12,7 @@ export type QuestionType =
   | 'date'
   | 'datetime'
   | 'information'
-  | 'calculated'
-  | 'button';
+  | 'calculated';
 
 /**
  * `text_id` and `phone_num` were retired -- both behaved exactly like `text`

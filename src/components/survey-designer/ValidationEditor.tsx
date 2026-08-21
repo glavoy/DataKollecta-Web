@@ -34,7 +34,7 @@ const ValidationEditor = ({
 }: ValidationEditorProps) => {
   const showNumeric = ['text_integer', 'text_decimal'].includes(fieldtype) && questionType === 'text';
   const showDate = ['date', 'datetime'].includes(fieldtype);
-  const showLogic = !['information', 'button'].includes(questionType);
+  const showLogic = questionType !== 'information';
   const showUnique = questionType === 'text';
 
   // Logic check helpers

@@ -8,8 +8,7 @@ import {
   Calendar,
   Clock,
   Info,
-  Calculator,
-  MousePointerClick
+  Calculator
 } from "lucide-react";
 
 interface QuestionTypeSelectorProps {
@@ -25,7 +24,6 @@ const questionTypes: { type: QuestionType; label: string; icon: React.ReactNode;
   { type: 'datetime', label: 'Date & Time', icon: <Clock className="h-5 w-5" />, description: 'Date and time picker' },
   { type: 'information', label: 'Information', icon: <Info className="h-5 w-5" />, description: 'Read-only display text' },
   { type: 'calculated', label: 'Calculated', icon: <Calculator className="h-5 w-5" />, description: 'Auto-computed value' },
-  { type: 'button', label: 'Button', icon: <MousePointerClick className="h-5 w-5" />, description: 'Action button trigger' },
 ];
 
 const QuestionTypeSelector = ({ onSelect }: QuestionTypeSelectorProps) => {
