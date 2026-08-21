@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom"; // Added Link
 import { SurveyPackage, SurveyForm, SurveyQuestion, QuestionType } from "@/types/survey";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,9 @@ import {
   Copy,
   CloudUpload,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import {
   DndContext,
@@ -57,6 +59,7 @@ import XmlPreview from "./XmlPreview";
 import GlobalSettingsEditor from "./GlobalSettingsEditor";
 import { surveyService } from "@/services/surveyService";
 import { useToast } from "@/hooks/use-toast";
+import { validatePackage } from "@/lib/validation";
 
 // Get default field type based on question type
 const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] => {
@@ -129,6 +132,12 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [deleteFormId, setDeleteFormId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Recomputed whenever the package object changes identity, which
+  // updatePackage always does -- every edit replaces the whole object, so
+  // this stays in sync without a separate effect or a debounce. Not
+  // expensive: a few milliseconds of Map lookups even for a large survey.
+  const report = useMemo(() => validatePackage(surveyPackage), [surveyPackage]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -344,6 +353,18 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
             <FileCode className="h-4 w-4 mr-2" />
             Preview & Export
           </Button>
+          <Button
+            variant={report.hasErrors ? "destructive" : "outline"}
+            size="sm"
+            title="Survey issues"
+          >
+            {report.hasErrors ? (
+              <AlertCircle className="h-4 w-4 mr-2" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+            )}
+            {report.errorCount} error{report.errorCount === 1 ? '' : 's'} · {report.warningCount} warning{report.warningCount === 1 ? '' : 's'}
+          </Button>
         </div>
       </div>
 
@@ -352,12 +373,22 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
       <Tabs value={activeFormId} onValueChange={setActiveFormId} className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center gap-2 mb-4 flex-shrink-0">
           <TabsList className="h-auto flex-wrap">
-            {surveyPackage.forms.map((form) => (
-              <TabsTrigger key={form.id} value={form.id} className="flex items-center gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                {form.displayname}
-              </TabsTrigger>
-            ))}
+            {surveyPackage.forms.map((form) => {
+              const formErrorCount = (report.byFormId.get(form.id) ?? []).filter(
+                (f) => f.severity === 'error',
+              ).length;
+              return (
+                <TabsTrigger key={form.id} value={form.id} className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  {form.displayname}
+                  {formErrorCount > 0 && (
+                    <Badge variant="destructive" className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
+                      {formErrorCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           <Button variant="outline" size="sm" onClick={addForm}>
             <Plus className="h-4 w-4" />
@@ -420,19 +451,24 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
                     items={form.questions.map(q => q.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {form.questions.map((question, index) => (
-                      <QuestionCard
-                        key={question.id}
-                        question={question}
-                        index={index}
-                        onEdit={() => {
-                          setEditingQuestion(question);
-                          setShowQuestionEditor(true);
-                        }}
-                        onDuplicate={() => handleDuplicateQuestion(question)}
-                        onDelete={() => handleDeleteQuestion(question.id)}
-                      />
-                    ))}
+                    {form.questions.map((question, index) => {
+                      const questionFindings = report.byQuestionId.get(question.id) ?? [];
+                      return (
+                        <QuestionCard
+                          key={question.id}
+                          question={question}
+                          index={index}
+                          errorCount={questionFindings.filter((f) => f.severity === 'error').length}
+                          warningCount={questionFindings.filter((f) => f.severity === 'warning').length}
+                          onEdit={() => {
+                            setEditingQuestion(question);
+                            setShowQuestionEditor(true);
+                          }}
+                          onDuplicate={() => handleDuplicateQuestion(question)}
+                          onDelete={() => handleDeleteQuestion(question.id)}
+                        />
+                      );
+                    })}
                   </SortableContext>
                 </DndContext>
 

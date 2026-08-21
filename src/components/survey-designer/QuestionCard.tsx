@@ -15,7 +15,8 @@ import {
   Clock,
   Info,
   Calculator,
-  MousePointerClick
+  AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -26,6 +27,9 @@ interface QuestionCardProps {
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** Counts, not the findings themselves -- a message-text edit shouldn't re-render every card. */
+  errorCount?: number;
+  warningCount?: number;
 }
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -38,7 +42,6 @@ const typeIcons: Record<string, React.ReactNode> = {
   information: <Info className="h-4 w-4" />,
   calculated: <Calculator className="h-4 w-4" />,
   automatic: <Calculator className="h-4 w-4" />, // Legacy support
-  button: <MousePointerClick className="h-4 w-4" />,
 };
 
 const typeLabels: Record<string, string> = {
@@ -51,7 +54,6 @@ const typeLabels: Record<string, string> = {
   information: 'Information',
   calculated: 'Calculated',
   automatic: 'Calculated', // Legacy support
-  button: 'Button',
 };
 
 // Color coding for different question types
@@ -65,10 +67,9 @@ const typeColors: Record<string, string> = {
   information: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   calculated: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
   automatic: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
-  button: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
 };
 
-const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete }: QuestionCardProps) => {
+const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCount = 0, warningCount = 0 }: QuestionCardProps) => {
   const hasValidation = question.numericCheck || question.dateRange ||
     (question.logicCheck && question.logicCheck.length > 0) || question.uniqueCheck;
   const hasSkipLogic = (question.preskip && question.preskip.length > 0) || (question.postskip && question.postskip.length > 0);
@@ -94,7 +95,7 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete }: Questi
     <Card
       ref={setNodeRef}
       style={style}
-      className="bg-card border-border hover:border-primary/50 hover:shadow-md transition-all duration-200 group min-w-0 w-full rounded-xl overflow-hidden"
+      className={`${errorCount > 0 ? 'border-destructive/60' : 'border-border'} bg-card hover:border-primary/50 hover:shadow-md transition-all duration-200 group min-w-0 w-full rounded-xl overflow-hidden`}
     >
       <CardContent className="p-0">
         {/* Colored accent bar at top */}
@@ -122,6 +123,18 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete }: Questi
                 <Badge variant="outline" className="font-mono text-xs truncate max-w-[200px] bg-muted/50" title={question.fieldname}>
                   {question.fieldname}
                 </Badge>
+                {errorCount > 0 && (
+                  <Badge variant="destructive" className="text-xs flex-shrink-0 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errorCount === 1 ? '1 error' : `${errorCount} errors`}
+                  </Badge>
+                )}
+                {warningCount > 0 && (
+                  <Badge variant="outline" className="text-xs flex-shrink-0 flex items-center gap-1 border-amber-500/50 text-amber-600">
+                    <AlertTriangle className="h-3 w-3" />
+                    {warningCount === 1 ? '1 warning' : `${warningCount} warnings`}
+                  </Badge>
+                )}
                 {hasValidation && (
                   <Badge variant="default" className="text-xs flex-shrink-0 bg-orange-500/80 hover:bg-orange-500">
                     Validation
