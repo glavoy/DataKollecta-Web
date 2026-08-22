@@ -93,6 +93,9 @@ const createDefaultQuestion = (type: QuestionType): SurveyQuestion => ({
   fieldtype: getDefaultFieldType(type),
   text: '',
   responses: ['radio', 'checkbox', 'combobox'].includes(type) ? [] : undefined,
+  // 80 matches the overwhelming majority of free-text widths in real SurveyGen
+  // output -- a starting point to adjust, not a rule to satisfy blindly.
+  maxCharacters: type === 'text' ? 80 : undefined,
 });
 
 const createDefaultForm = (): SurveyForm => ({

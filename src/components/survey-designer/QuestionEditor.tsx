@@ -129,6 +129,19 @@ const getAvailableFieldTypes = (questionType: QuestionType): { value: FieldType;
   return [{ value: getDefaultFieldType(questionType), label: getDefaultFieldType(questionType) }];
 };
 
+/**
+ * A starting Max Characters for a freetext-shaped field type, so a new
+ * question doesn't open with a blank required field. 80 matches the
+ * overwhelming majority of free-text widths in real SurveyGen output;
+ * hourmin's =5 is the only value the format accepts, so it's forced rather
+ * than merely suggested.
+ */
+const defaultWidthFor = (fieldtype: FieldType): Pick<SurveyQuestion, 'maxCharacters' | 'fixedLength'> => {
+  if (fieldtype === 'hourmin') return { maxCharacters: 5, fixedLength: true };
+  if (['text', 'text_integer', 'text_decimal'].includes(fieldtype)) return { maxCharacters: 80 };
+  return {};
+};
+
 /** Renders the stored width back as the '=N' shorthand authors type. */
 const formatWidth = (value: number | undefined, fixed: boolean | undefined): string => {
   if (value === undefined) return '';
@@ -179,6 +192,17 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
     setEditedQuestion(prev => prev ? { ...prev, [field]: value } : null);
   };
 
+  const handleFieldTypeChange = (newFieldType: FieldType) => {
+    setEditedQuestion(prev => {
+      if (!prev) return null;
+      const updated: SurveyQuestion = { ...prev, fieldtype: newFieldType };
+      if (newFieldType === 'hourmin' || updated.maxCharacters === undefined) {
+        Object.assign(updated, defaultWidthFor(newFieldType));
+      }
+      return updated;
+    });
+  };
+
   // Handle question type change with auto field type setting
   const handleTypeChange = (newType: QuestionType) => {
     const newFieldType = getDefaultFieldType(newType);
@@ -189,6 +213,9 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
         type: newType,
         fieldtype: newFieldType,
       };
+      if (updated.maxCharacters === undefined) {
+        Object.assign(updated, defaultWidthFor(newFieldType));
+      }
       // Clear responses if changing away from select types
       if (!['radio', 'checkbox', 'combobox'].includes(newType)) {
         updated.responses = undefined;
@@ -287,7 +314,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                   <Label>Data Type</Label>
                   <Select
                     value={editedQuestion.fieldtype}
-                    onValueChange={(v) => update('fieldtype', v as FieldType)}
+                    onValueChange={(v) => handleFieldTypeChange(v as FieldType)}
                   >
                     <SelectTrigger>
                       <SelectValue />
