@@ -26,7 +26,11 @@ All colors MUST be HSL.
     --secondary-foreground: 210 40% 98%;
 
     --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    /* Was 222 47% 11% -- identical to --foreground, so every placeholder
+       and every text-muted-foreground hint rendered at full contrast
+       instead of reading as secondary. 215 16% 46% matches the tone
+       already used for --accent-foreground/--chart-3 in this palette. */
+    --muted-foreground: 215 16% 46%;
 
     --accent: 210 40% 98%;
     --accent-foreground: 215 16% 46%;
@@ -112,7 +116,12 @@ All colors MUST be HSL.
     --secondary-foreground: 210 40% 98%;
 
     --muted: 215 16% 46%;
-    --muted-foreground: 210 40% 98%;
+    /* Same fix as :root -- was identical to --foreground here too. 215 20%
+       65% matches --chart-2/--sidebar-accent, already the "secondary text
+       on a dark surface" tone in this palette. This block is currently
+       unreachable (no dark-mode toggle exists in the app), fixed anyway so
+       the token is correct if one is ever added. */
+    --muted-foreground: 215 20% 65%;
 
     --accent: 228 84% 4%;
     --accent-foreground: 215 20% 65%;
