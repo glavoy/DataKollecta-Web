@@ -221,7 +221,19 @@ function renameInSkipRule(rule: SkipRule, oldName: string, newName: string): { r
   return { rule: next, changed };
 }
 
-function renameInQuestion(
+/**
+ * Rewrites references to `oldName` within a single question's own skips,
+ * logic checks, calculations, text, and response filters.
+ *
+ * Exported (not just used internally by `renameFieldInForm`) for
+ * `handleDuplicateQuestion`: fieldnames are unique within a form, so a
+ * freshly-duplicated question referencing its own pre-duplication fieldname
+ * can only mean "itself" -- e.g. a `logicCheck` of `age > 18` on the
+ * question named `age` is a normal self-check, and after duplicating `age`
+ * into `age_copy` it must become `age_copy > 18` or the copy silently
+ * re-validates the original's answer instead of its own.
+ */
+export function renameInQuestion(
   q: SurveyQuestion,
   oldName: string,
   newName: string,

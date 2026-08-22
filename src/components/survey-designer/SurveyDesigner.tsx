@@ -70,6 +70,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { validatePackage, type Finding, type FindingPart } from "@/lib/validation";
 import { useDraftMirror } from "@/hooks/useDraftMirror";
+import { renameFieldAcrossPackage, renameInQuestion } from "@/lib/xml/rename";
 import { surveyDraftKey, readDraft, clearDraft, evaluateDraft, type SurveyDraft } from "@/lib/draftStorage";
 
 // Get default field type based on question type
@@ -404,11 +405,37 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
 
   const handleSaveQuestion = (question: SurveyQuestion) => {
     if (!activeForm) return;
-    updateForm(activeFormId, {
-      questions: activeForm.questions.map(q =>
-        q.id === question.id ? question : q
-      )
-    });
+
+    const questions = activeForm.questions.map(q =>
+      q.id === question.id ? question : q
+    );
+
+    const oldName = activeForm.questions.find(q => q.id === question.id)?.fieldname?.trim();
+    const newName = question.fieldname?.trim();
+    const renamed = !!oldName && !!newName && oldName.toLowerCase() !== newName.toLowerCase();
+
+    if (!renamed) {
+      updateForm(activeFormId, { questions });
+      return;
+    }
+
+    // Rewrite every other reference to the old name -- skips, calculations,
+    // [[placeholders]], and (on this form's children) entry_condition /
+    // repeatCountField -- before the name is gone for good.
+    const { pkg, count } = renameFieldAcrossPackage(
+      { ...surveyPackage, forms: surveyPackage.forms.map(f => f.id === activeFormId ? { ...f, questions } : f) },
+      activeFormId,
+      oldName!,
+      newName!
+    );
+    updatePackage(() => ({ forms: pkg.forms }));
+
+    if (count > 0) {
+      toast({
+        title: `Renamed '${oldName}' to '${newName}'`,
+        description: `Updated ${count} other reference${count === 1 ? '' : 's'} across the survey.`,
+      });
+    }
   };
 
   /** Which QuestionEditor tab a finding's `part` lives on. */
@@ -460,11 +487,16 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   const handleDuplicateQuestion = (question: SurveyQuestion) => {
     if (!activeForm) return;
     const index = activeForm.questions.findIndex(q => q.id === question.id);
-    const newQuestion = {
-      ...question,
-      id: crypto.randomUUID(),
-      fieldname: `${question.fieldname}_copy`,
-    };
+    const copyFieldname = `${question.fieldname}_copy`;
+    // Fieldnames are unique within a form, so any reference to the OLD
+    // fieldname inside the question being duplicated can only mean itself
+    // (e.g. a self-check logicCheck) -- it must follow to the new name, or
+    // the copy silently re-validates the original's answer.
+    const { question: newQuestion } = renameInQuestion(
+      { ...question, id: crypto.randomUUID(), fieldname: copyFieldname },
+      question.fieldname,
+      copyFieldname
+    );
     const newQuestions = [...activeForm.questions];
     newQuestions.splice(index + 1, 0, newQuestion);
     updateForm(activeFormId, { questions: newQuestions });
