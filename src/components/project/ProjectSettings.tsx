@@ -25,6 +25,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 
 interface ProjectSettingsProps {
   project: {
@@ -107,15 +108,23 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
       // Delete in order: formchanges → submissions → crfs → survey_packages →
       // app_sessions → app_credentials → project_members → projects
 
-      // 1. Get all submissions to find their local_unique_ids for formchanges
-      const { data: submissions } = await supabase
-        .from('submissions')
-        .select('local_unique_id')
-        .eq('project_id', project.id);
+      // 1. Get all submissions to find their local_unique_ids for
+      // formchanges. Paged -- an unpaged select() here silently returns
+      // only the first 1000 rows, leaving formchanges past that point
+      // orphaned; with no ON DELETE CASCADE from projects, those orphans
+      // later make step 8 fail with everything else already deleted,
+      // wedging the project in an undeletable half-deleted state.
+      const submissions = await fetchAllRows<{ local_unique_id: string | null }>((from, to) =>
+        supabase.from('submissions').select('local_unique_id').eq('project_id', project.id).range(from, to),
+      );
 
-      if (submissions && submissions.length > 0) {
-        const recordUuids = submissions.map(s => s.local_unique_id);
-        await supabase.from('formchanges').delete().in('record_uuid', recordUuids);
+      if (submissions.length > 0) {
+        const recordUuids = submissions.map(s => s.local_unique_id).filter((id): id is string => id !== null);
+        // Chunked -- 1000+ UUIDs in one .in() exceeds a GET querystring's
+        // practical length ceiling and fails as a 414.
+        for (const chunk of chunkIds(recordUuids)) {
+          await supabase.from('formchanges').delete().in('record_uuid', chunk);
+        }
       }
 
       // 2. Delete submissions
@@ -125,18 +134,13 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
       await supabase.from('crfs').delete().eq('project_id', project.id);
 
       // 4. Delete survey packages (and their storage files)
-      const { data: surveyPackages } = await supabase
-        .from('survey_packages')
-        .select('zip_file_path')
-        .eq('project_id', project.id);
+      const surveyPackages = await fetchAllRows<{ zip_file_path: string | null }>((from, to) =>
+        supabase.from('survey_packages').select('zip_file_path').eq('project_id', project.id).range(from, to),
+      );
 
-      if (surveyPackages) {
-        const filePaths = surveyPackages
-          .map(s => s.zip_file_path)
-          .filter(Boolean);
-        if (filePaths.length > 0) {
-          await supabase.storage.from('surveys').remove(filePaths);
-        }
+      const filePaths = surveyPackages.map(s => s.zip_file_path).filter((p): p is string => Boolean(p));
+      if (filePaths.length > 0) {
+        await supabase.storage.from('surveys').remove(filePaths);
       }
       await supabase.from('survey_packages').delete().eq('project_id', project.id);
 

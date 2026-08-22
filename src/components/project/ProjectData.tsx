@@ -34,6 +34,7 @@ import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import JSZip from "jszip";
 import { FormChangesView } from "@/components/FormChangesView";
+import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 
 interface FormWithCount {
   id: string;
@@ -41,6 +42,9 @@ interface FormWithCount {
   display_name: string;
   fields: any[];
   recordCount: number;
+  /** Two survey versions can share a table_name; every submissions query
+      must be scoped by this too, or their data mixes together. */
+  survey_package_id: string;
 }
 
 interface SurveyWithForms {
@@ -111,9 +115,10 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
                 .from('submissions')
                 .select('*', { count: 'exact', head: true })
                 .eq('project_id', projectId)
+                .eq('survey_package_id', survey.id)
                 .eq('table_name', form.table_name);
 
-              return { ...form, recordCount: count || 0 };
+              return { ...form, survey_package_id: survey.id, recordCount: count || 0 };
             })
           );
 
@@ -131,18 +136,19 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
 
   // Fetch submissions for the selected form
   const { data: submissions, isLoading: submissionsLoading } = useQuery({
-    queryKey: ['formSubmissions', projectId, selectedForm?.table_name],
+    queryKey: ['formSubmissions', projectId, selectedForm?.survey_package_id, selectedForm?.table_name],
     queryFn: async () => {
       if (!selectedForm) return [];
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at')
-        .eq('project_id', projectId)
-        .eq('table_name', selectedForm.table_name)
-        .order('collected_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Submission[];
+      return fetchAllRows<Submission>((from, to) =>
+        supabase
+          .from('submissions')
+          .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at')
+          .eq('project_id', projectId)
+          .eq('survey_package_id', selectedForm.survey_package_id)
+          .eq('table_name', selectedForm.table_name)
+          .order('collected_at', { ascending: false })
+          .range(from, to),
+      );
     },
     enabled: !!selectedForm,
   });
@@ -267,16 +273,21 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     try {
       const zip = new JSZip();
 
-      // Export each form to CSV and add to ZIP
+      // Export each form to CSV and add to ZIP -- paged, not a single
+      // select(), or a form with more than max_rows submissions silently
+      // ships an incomplete CSV inside an otherwise "successful" export.
       for (const form of survey.forms) {
-        // Fetch submissions for this form
-        const { data: formSubmissions } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('project_id', projectId)
-          .eq('table_name', form.table_name);
+        const formSubmissions = await fetchAllRows((from, to) =>
+          supabase
+            .from('submissions')
+            .select('*')
+            .eq('project_id', projectId)
+            .eq('survey_package_id', surveyId)
+            .eq('table_name', form.table_name)
+            .range(from, to),
+        );
 
-        if (formSubmissions && formSubmissions.length > 0) {
+        if (formSubmissions.length > 0) {
           const csvContent = generateCSV(formSubmissions);
           zip.file(`${form.table_name}.csv`, csvContent);
         }
@@ -284,21 +295,33 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
 
       // Export formchanges for this survey
       // Get all local_unique_ids for this survey's submissions
-      const { data: surveySubmissions } = await supabase
-        .from('submissions')
-        .select('local_unique_id')
-        .eq('survey_package_id', surveyId);
+      const surveySubmissions = await fetchAllRows<{ local_unique_id: string }>((from, to) =>
+        supabase
+          .from('submissions')
+          .select('local_unique_id')
+          .eq('survey_package_id', surveyId)
+          .range(from, to),
+      );
 
-      if (surveySubmissions && surveySubmissions.length > 0) {
+      if (surveySubmissions.length > 0) {
         const recordUuids = surveySubmissions.map(s => s.local_unique_id);
 
-        // Fetch formchanges for these records
-        const { data: formchanges } = await supabase
-          .from('formchanges')
-          .select('*')
-          .in('record_uuid', recordUuids);
+        // `.in()` on a GET request has a querystring length ceiling well
+        // under what 1000+ UUIDs need, so this is chunked rather than one
+        // call -- an unchunked `.in()` here previously failed as a 414 with
+        // its error silently discarded, dropping formchanges.csv from the
+        // export with no indication anything went wrong.
+        const formchanges = (
+          await Promise.all(
+            chunkIds(recordUuids).map((chunk) =>
+              fetchAllRows((from, to) =>
+                supabase.from('formchanges').select('*').in('record_uuid', chunk).range(from, to),
+              ),
+            ),
+          )
+        ).flat();
 
-        if (formchanges && formchanges.length > 0) {
+        if (formchanges.length > 0) {
           const csvContent = generateFormChangesCSV(formchanges);
           zip.file('formchanges.csv', csvContent);
         }

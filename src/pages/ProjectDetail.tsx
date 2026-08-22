@@ -43,6 +43,7 @@ import JSZip from "jszip";
 import { parseSurveyDocument } from "@/lib/xmlParser";
 import { surveyService } from "@/services/surveyService";
 import { projectMemberService } from "@/services/projectMemberService";
+import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 
 // Import project sub-components
 import ProjectOverview from "@/components/project/ProjectOverview";
@@ -265,22 +266,33 @@ const ProjectDetail = () => {
         }
       }
 
-      // Delete dependent Submissions and History
-      const { data: submissionsData } = await supabase
-        .from('submissions')
-        .select('id, local_unique_id')
-        .eq('survey_package_id', surveyId);
+      // Delete dependent Submissions and History. The submissions delete
+      // below isn't row-capped (a DELETE with no representation isn't
+      // subject to PostgREST's max_rows response cap), but this SELECT is
+      // -- so it must be paged, or a survey with more than 1000 submissions
+      // only has the first 1000 records' formchanges cleaned up, leaving
+      // the rest to later brick project deletion (formchanges has no
+      // ON DELETE CASCADE from projects).
+      const submissionsData = await fetchAllRows<{ id: string; local_unique_id: string | null }>(
+        (from, to) =>
+          supabase
+            .from('submissions')
+            .select('id, local_unique_id')
+            .eq('survey_package_id', surveyId)
+            .range(from, to),
+      );
 
-      if (submissionsData && submissionsData.length > 0) {
+      if (submissionsData.length > 0) {
         const recordUuids = submissionsData
           .map(s => s.local_unique_id)
-          .filter(id => id !== null);
+          .filter((id): id is string => id !== null);
 
         if (recordUuids.length > 0) {
-          await supabase
-            .from('formchanges')
-            .delete()
-            .in('record_uuid', recordUuids);
+          // Chunked -- 1000+ UUIDs in one .in() exceeds a GET querystring's
+          // practical length ceiling and fails as a 414.
+          for (const chunk of chunkIds(recordUuids)) {
+            await supabase.from('formchanges').delete().in('record_uuid', chunk);
+          }
         }
 
         await supabase
