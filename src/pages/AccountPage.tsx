@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,19 @@ const AccountPage = () => {
   const { user, profile, updateProfile } = useAuth();
   const { toast } = useToast();
   const [fullName, setFullName] = useState(profile?.full_name || "");
+  // AuthContext resolves `profile` asynchronously after mount (loading is
+  // set false immediately, the profile fetch runs in the background), so
+  // useState's initial value above is usually captured while profile is
+  // still null -- on a hard refresh this field would render empty, and
+  // clicking Save would overwrite the real name with "". Re-sync once the
+  // profile actually arrives, but only while the user hasn't started
+  // editing -- a stale in-flight fetch resolving after they've already
+  // typed a change must not clobber it.
+  const fullNameEditedRef = useRef(false);
+  useEffect(() => {
+    if (fullNameEditedRef.current) return;
+    setFullName(profile?.full_name || "");
+  }, [profile?.full_name]);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -46,6 +59,7 @@ const AccountPage = () => {
     try {
       setSaving(true);
       await updateProfile({ full_name: fullName });
+      fullNameEditedRef.current = false;
       toast({
         title: "Profile updated",
         description: "Your profile has been saved successfully.",
@@ -133,7 +147,10 @@ const AccountPage = () => {
                 <Input
                   id="name"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    fullNameEditedRef.current = true;
+                    setFullName(e.target.value);
+                  }}
                   placeholder="Enter your full name"
                 />
               </div>
