@@ -36,6 +36,7 @@ import JSZip from "jszip";
 import { FormChangesView } from "@/components/FormChangesView";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 import { buildCsv } from "@/lib/csv";
+import { useToast } from "@/hooks/use-toast";
 
 interface FormWithCount {
   id: string;
@@ -71,6 +72,7 @@ interface ProjectDataProps {
 }
 
 const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
+  const { toast } = useToast();
   const [selectedForm, setSelectedForm] = useState<FormWithCount | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<Submission | null>(null);
@@ -78,7 +80,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
   const pageSize = 25;
 
   // Fetch surveys with their forms and record counts
-  const { data: surveysWithForms, isLoading: surveysLoading } = useQuery({
+  const { data: surveysWithForms, isLoading: surveysLoading, isError: surveysIsError } = useQuery({
     queryKey: ['surveysWithForms', projectId],
     queryFn: async (): Promise<SurveyWithForms[]> => {
       // 1. Get all surveys for the project
@@ -321,6 +323,11 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Could not export this survey's data. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setExportingId(null);
     }
@@ -354,6 +361,13 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : surveysIsError ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileSpreadsheet className="h-12 w-12 text-destructive mb-3" />
+            <p className="text-muted-foreground">Failed to load surveys. Please try again.</p>
+          </CardContent>
+        </Card>
       ) : surveysWithForms && surveysWithForms.length > 0 ? (
         <div className="space-y-4">
           {surveysWithForms.map((survey) => (

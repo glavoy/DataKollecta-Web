@@ -46,25 +46,27 @@ const DataView = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch projects with stats
-  const { data: projects, isLoading } = useQuery({
+  const { data: projects, isLoading, isError } = useQuery({
     queryKey: ["projectsWithStats"],
     queryFn: async (): Promise<ProjectWithStats[]> => {
       // Get user's projects
-      const { data: memberships } = await supabase
+      const { data: memberships, error: membershipsError } = await supabase
         .from('project_members')
         .select('project_id')
         .eq('user_id', session?.user?.id);
 
+      if (membershipsError) throw membershipsError;
       if (!memberships || memberships.length === 0) return [];
 
       const projectIds = memberships.map(m => m.project_id);
 
       // Get projects
-      const { data: projectsData } = await supabase
+      const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('id, name, slug, description, is_active')
         .in('id', projectIds);
 
+      if (projectsError) throw projectsError;
       if (!projectsData) return [];
 
       // Get stats for each project
@@ -161,6 +163,11 @@ const DataView = () => {
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : isError ? (
+              <div className="text-center py-12">
+                <Database className="h-12 w-12 text-destructive mx-auto mb-3" />
+                <p className="text-muted-foreground">Failed to load projects. Please try again.</p>
               </div>
             ) : filteredProjects.length > 0 ? (
               <Table>
