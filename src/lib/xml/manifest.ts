@@ -38,7 +38,7 @@ export interface SurveyManifest {
 
 /** Exported so the validation engine's base-form-count rule agrees with what actually gets emitted. */
 export function isBaseForm(form: SurveyForm): boolean {
-  return form.isBase ?? !form.parenttable;
+  return !form.parenttable;
 }
 
 function crfOf(form: SurveyForm): Record<string, unknown> {
@@ -73,8 +73,7 @@ function crfOf(form: SurveyForm): Record<string, unknown> {
   if (!base) {
     all.parenttable = form.parenttable;
     all.incrementfield = form.incrementField;
-    all.requireslink = form.requiresLink ?? 1;
-    all.repeat_count_source = form.repeatCountSource;
+    all.requireslink = 1;
     all.repeat_count_field = form.repeatCountField;
 
     // Always emitted, including when 0 -- deliberately unlike SurveyGen, which
@@ -84,8 +83,6 @@ function crfOf(form: SurveyForm): Record<string, unknown> {
     // "unspecified"; a dropdown always means something.
     all.auto_start_repeat = form.autoStartRepeat ?? 0;
     all.repeat_enforce_count = form.repeatEnforceCount ?? 1;
-  } else if (form.requiresLink !== undefined) {
-    all.requireslink = form.requiresLink;
   }
 
   const ordered: Record<string, unknown> = {};

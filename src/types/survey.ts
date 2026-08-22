@@ -274,17 +274,12 @@ export interface SurveyForm {
   // New/Updated fields
   idconfig?: IdConfig;
   repeatCountField?: string;
-  repeatCountSource?: string; // UI helper, likely not in manifest
   autoStartRepeat: AutoStartRepeat;
   repeatEnforceCount: RepeatEnforceCount;
-  
+
   primaryKey?: string;
   incrementField?: string;
   entry_condition?: string;
-  /** Emitted as `isbase`; defaults to "has no parent table". */
-  isBase?: boolean;
-  /** Emitted as `requireslink`. Defaults to 1 for child forms, absent for base forms. */
-  requiresLink?: 0 | 1;
 
   /**
    * Custom wording for the end-of-survey screen. Left unset, the app's own

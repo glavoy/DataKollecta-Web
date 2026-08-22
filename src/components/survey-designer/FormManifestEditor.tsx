@@ -317,43 +317,45 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
                 </div>
 
                 {isChildForm && (
-                  <>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <Label>Linking Field</Label>
-                        <InfoTooltip text="Field in this form that links to the parent record. Usually the parent's primary key (e.g., hhid)." />
-                      </div>
-                      <Select
-                        value={editedForm.linkingfield || '_none_'}
-                        onValueChange={(v) => update('linkingfield', v === '_none_' ? undefined : v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select field..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="_none_">Not set</SelectItem>
-                          {availableFields.map(q => (
-                            <SelectItem key={q.fieldname} value={q.fieldname}>
-                              {q.fieldname}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <Label>Linking Field</Label>
+                      <InfoTooltip text="Field in this form that links to the parent record. Usually the parent's primary key (e.g., hhid)." />
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <Label>Entry Condition</Label>
-                        <InfoTooltip text="Logic expression that determines when this form should be available. The form only appears when this condition is true (e.g., 'enrolled=1')." />
-                      </div>
-                      <Input
-                        value={editedForm.entry_condition || ''}
-                        onChange={(e) => update('entry_condition', e.target.value || undefined)}
-                        placeholder="e.g., enrolled=1"
-                      />
-                    </div>
-                  </>
+                    <Select
+                      value={editedForm.linkingfield || '_none_'}
+                      onValueChange={(v) => update('linkingfield', v === '_none_' ? undefined : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select field..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none_">Not set</SelectItem>
+                        {availableFields.map(q => (
+                          <SelectItem key={q.fieldname} value={q.fieldname}>
+                            {q.fieldname}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
+
+                {/* entry_condition applies to base forms too -- manifest.ts
+                    emits it unconditionally (the real SurveyGen sample
+                    carries it on a base CRF), so this is no longer gated
+                    to child forms only. */}
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <Label>Entry Condition</Label>
+                    <InfoTooltip text="Logic expression that determines when this form should be available. The form only appears when this condition is true (e.g., 'enrolled=1')." />
+                  </div>
+                  <Input
+                    value={editedForm.entry_condition || ''}
+                    onChange={(e) => update('entry_condition', e.target.value || undefined)}
+                    placeholder="e.g., enrolled=1"
+                  />
+                </div>
               </AccordionContent>
             </AccordionItem>
 
@@ -369,23 +371,24 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
                   onChange={(fields) => update('primaryKey', formatFieldList(fields))}
                 />
 
-                {/* ID Config - only for base forms */}
-                {!isChildForm && (
-                  <>
-                    <div className="flex items-center gap-2 pt-2">
-                      <Checkbox
-                        id="enableIdConfig"
-                        checked={!!editedForm.idconfig}
-                        onCheckedChange={handleIdConfigToggle}
-                      />
-                      <Label htmlFor="enableIdConfig" className="cursor-pointer">
-                        Enable automatic ID generation
-                      </Label>
-                      <InfoTooltip text="Generate unique IDs by combining a prefix, field values, and an auto-incrementing number. Only available for top-level (base) forms." />
-                    </div>
+                {/* manifest.ts emits idconfig unconditionally for any form,
+                    not just base forms -- a repeating child form can have
+                    its own generated ID sequence independent of its
+                    parent's, so this is no longer gated to base forms only. */}
+                <div className="flex items-center gap-2 pt-2">
+                  <Checkbox
+                    id="enableIdConfig"
+                    checked={!!editedForm.idconfig}
+                    onCheckedChange={handleIdConfigToggle}
+                  />
+                  <Label htmlFor="enableIdConfig" className="cursor-pointer">
+                    Enable automatic ID generation
+                  </Label>
+                  <InfoTooltip text="Generate unique IDs by combining a prefix, field values, and an auto-incrementing number." />
+                </div>
 
-                    {editedForm.idconfig && (
-                      <div className="space-y-4 pl-6 border-l-2 border-muted">
+                {editedForm.idconfig && (
+                  <div className="space-y-4 pl-6 border-l-2 border-muted">
                         <div className="space-y-2">
                           <div className="flex items-center">
                             <Label>ID Prefix</Label>
@@ -473,8 +476,6 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
                         </div>
                       </div>
                     )}
-                  </>
-                )}
 
                 {/* Increment Field - only for child forms */}
                 {isChildForm && (

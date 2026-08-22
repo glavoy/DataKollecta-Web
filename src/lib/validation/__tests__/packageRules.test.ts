@@ -98,16 +98,6 @@ describe('base form count', () => {
     expect(findings).toContainEqual(expect.objectContaining({ ruleId: RULE.baseFormCount }));
   });
 
-  it('respects an explicit isBase override, matching what the manifest actually emits', () => {
-    const findings = packageFindings(
-      pkgOf([
-        formOf('household', { isBase: false, parenttable: undefined }),
-        formOf('member', { isBase: true }),
-      ]),
-    );
-    expect(findings.filter((f) => f.ruleId === RULE.baseFormCount)).toEqual([]);
-  });
-
   it('is silent for an empty package (nothing to be wrong yet)', () => {
     expect(packageFindings(pkgOf([]))).toEqual([]);
   });
