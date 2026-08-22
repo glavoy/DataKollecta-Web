@@ -58,7 +58,6 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
   const handleTypeChange = (type: CalculationConfig['type']) => {
     const defaults: Partial<Record<CalculationConfig['type'], CalculationConfig>> = {
       age_at_date: { type, value: 'years' },
-      age_from_date: { type, unit: 'y' },
       date_diff: { type, unit: 'd' },
       date_part: { type, unit: 'yyyy' },
       math: { type, operator: '+' },
@@ -246,7 +245,6 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
             <SelectValue placeholder="Select calculation type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="age_from_date">Age from Date (today)</SelectItem>
             <SelectItem value="age_at_date">Age at Specific Date</SelectItem>
             <SelectItem value="date_diff">Date Difference</SelectItem>
             <SelectItem value="date_offset">Date Offset</SelectItem>
@@ -260,43 +258,6 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
           </SelectContent>
         </Select>
       </div>
-
-      {/* Age from Date - calculate age from a date field to today */}
-      {calculation?.type === 'age_from_date' && (
-        <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border">
-          <div className="space-y-2">
-            <Label>Date of Birth Field</Label>
-            <Select
-              value={calculation.field || ''}
-              onValueChange={(v) => onChange({ ...calculation, field: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select date field" />
-              </SelectTrigger>
-              <SelectContent>
-                {dateFields.map(q => (
-                  <SelectItem key={q.id} value={q.fieldname}>{q.fieldname}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Result Unit</Label>
-            <Select
-              value={calculation.unit || 'y'}
-              onValueChange={(v) => onChange({ ...calculation, unit: v as 'y' | 'm' | 'w' | 'd' })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="y">Years</SelectItem>
-                <SelectItem value="m">Months</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
 
       {/* Age at Date - calculate age at a specific date */}
       {calculation?.type === 'age_at_date' && (
@@ -373,6 +334,9 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Start Date Field</Label>
+              {/* auto_fields.dart's date_diff case treats the literal
+                  'today' specially for both field and value -- not a real
+                  fieldname, computed at read time. */}
               <Select
                 value={calculation.field || ''}
                 onValueChange={(v) => onChange({ ...calculation, field: v })}
@@ -381,6 +345,7 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
                   <SelectValue placeholder="Select field" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
                   {dateFields.map(q => (
                     <SelectItem key={q.id} value={q.fieldname}>{q.fieldname}</SelectItem>
                   ))}
@@ -397,6 +362,7 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
                   <SelectValue placeholder="Select field" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
                   {dateFields.map(q => (
                     <SelectItem key={q.id} value={q.fieldname}>{q.fieldname}</SelectItem>
                   ))}
@@ -494,10 +460,11 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
             <Input
               value={calculation.value || ''}
               onChange={(e) => onChange({ ...calculation, value: e.target.value })}
-              placeholder="e.g., +7d, -1m, +1y (or field name)"
+              placeholder="e.g., +7d, -1m, +1y"
             />
             <p className="text-xs text-muted-foreground">
-              Use +/- with d (days), w (weeks), m (months), y (years). Or a field name.
+              +/- a number, then d (days), w (weeks), m (months) or y (years). auto_fields.dart
+              parses this string directly -- a field name here computes nothing.
             </p>
           </div>
         </div>
@@ -576,8 +543,16 @@ const CalculationEditor = ({ calculation, availableFields, onChange }: Calculati
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* CaseOperator also declares 'contains'/'does not
+                          contain', but auto_fields.dart's case evaluator
+                          runs exclusively through FieldComparator.compare,
+                          whose switch has no branch for either -- they
+                          fall to `default: return false`, always. Offering
+                          them here would look like a real option that
+                          silently never matches. Not offered until the
+                          app actually implements them. */}
                       <SelectItem value="=">=</SelectItem>
-                      <SelectItem value="<>">!=</SelectItem>
+                      <SelectItem value="!=">!=</SelectItem>
                       <SelectItem value="<">&lt;</SelectItem>
                       <SelectItem value=">">&gt;</SelectItem>
                       <SelectItem value="<=">&lt;=</SelectItem>
