@@ -36,15 +36,13 @@ const CreateProjectDialog = ({ open, onOpenChange, onSubmit, loading }: CreatePr
   }, [open]);
 
   const handleNameChange = (name: string) => {
-    // Only auto-generate slug if it hasn't been manually edited yet
-    // For now, we'll just update the name and let the user type the code if they want,
-    // or we could auto-fill it if the slug box is empty.
-    // Let's go with: if slug is empty, auto-fill.
+    // Auto-generate the slug from the name until the user diverges from
+    // that derivation by editing the slug field themselves.
     setFormData(prev => {
-      const newSlug = prev.slug === "" || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9_]/g, "")
+      const slug = prev.slug === "" || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9_]/g, "")
         ? name.toLowerCase().replace(/[^a-z0-9_]/g, "")
         : prev.slug;
-      return { ...prev, name };
+      return { ...prev, name, slug };
     });
   };
 

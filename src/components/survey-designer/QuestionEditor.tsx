@@ -327,19 +327,23 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                 </div>
               )}
 
-              {/* Question Text */}
-              <div className="space-y-2">
-                <Label>Question Text</Label>
-                <Textarea
-                  value={editedQuestion.text}
-                  onChange={(e) => update('text', e.target.value)}
-                  placeholder="Enter the question or label text..."
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use [[fieldname]] to reference values from previous questions.
-                </p>
-              </div>
+              {/* Question Text -- a Calculated question renders no UI, so
+                  emitQuestion never writes its <text> either; showing this
+                  field for one would silently discard whatever was typed. */}
+              {!config.showCalculation && (
+                <div className="space-y-2">
+                  <Label>Question Text</Label>
+                  <Textarea
+                    value={editedQuestion.text}
+                    onChange={(e) => update('text', e.target.value)}
+                    placeholder="Enter the question or label text..."
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use [[fieldname]] to reference values from previous questions.
+                  </p>
+                </div>
+              )}
 
               {/* Max Characters - only for text types with appropriate field types */}
               {config.showMaxCharacters && (

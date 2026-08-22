@@ -37,6 +37,7 @@ interface Project {
   surveysCount?: number;
   submissionsCount?: number;
   membersCount?: number;
+  role: string;
 }
 
 const Projects = () => {
@@ -59,10 +60,10 @@ const Projects = () => {
     try {
       setLoading(true);
 
-      // Fetch project IDs where user is a member
+      // Fetch project IDs where user is a member, and this user's role on each
       const { data: memberships, error: memberError } = await supabase
         .from('project_members')
-        .select('project_id')
+        .select('project_id, role')
         .eq('user_id', user.id);
 
       if (memberError) {
@@ -75,6 +76,8 @@ const Projects = () => {
         setProjects([]);
         return;
       }
+
+      const roleByProjectId = new Map(memberships.map(m => [m.project_id, m.role]));
 
       // Fetch the actual projects
       const projectIds = memberships.map(m => m.project_id);
@@ -115,6 +118,7 @@ const Projects = () => {
             surveysCount: surveysCount || 0,
             submissionsCount: submissionsCount || 0,
             membersCount: membersCount || 0,
+            role: roleByProjectId.get(project.id) ?? 'member',
           };
         })
       );
@@ -304,8 +308,8 @@ const Projects = () => {
                     </div>
                     <CardDescription>{project.description}</CardDescription>
                     <div className="flex items-center gap-2 pt-1">
-                      <Badge variant="outline" className="text-xs">
-                        Owner
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {project.role}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         Code: {project.slug}
@@ -325,15 +329,6 @@ const Projects = () => {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/app/projects/${project.slug}`); }}>
                         View Project
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-                        Edit Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-                        Manage Team
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={(e) => e.stopPropagation()}>
-                        Archive
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
