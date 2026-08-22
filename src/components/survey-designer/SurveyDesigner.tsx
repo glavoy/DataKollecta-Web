@@ -186,6 +186,10 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
 
   const surveyKey = surveyDraftKey(surveyRecordId, projectId ?? null);
   const [pendingDraft, setPendingDraft] = useState<{ draft: SurveyDraft; staleBase: boolean } | null>(null);
+  // Guards against the restore/discard dialog's own close animation firing
+  // its onOpenChange a second time after an explicit button already handled
+  // the choice -- see handleDiscardDraft.
+  const draftHandledRef = useRef(false);
 
   // Adopt `initialPackage` only when the survey it represents actually
   // changes -- keyed on the package's own id, not on the prop's object
@@ -211,6 +215,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
     if (evaluation.kind === 'redundant') {
       clearDraft(userId, surveyKey);
     } else if (evaluation.kind === 'offer') {
+      draftHandledRef.current = false;
       setPendingDraft({ draft: evaluation.draft, staleBase: evaluation.staleBase });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on initialPackage/serverUpdatedAt only; userId/surveyKey are read for the one-time draft check on adoption, not meant to re-run this
@@ -250,7 +255,8 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   };
 
   const handleRestoreDraft = () => {
-    if (!pendingDraft) return;
+    if (!pendingDraft || draftHandledRef.current) return;
+    draftHandledRef.current = true;
     const { draft } = pendingDraft;
     const restored: SurveyPackage = {
       ...draft.pkg,
@@ -264,6 +270,13 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   };
 
   const handleDiscardDraft = () => {
+    // AlertDialogAction/Cancel both close the dialog themselves, which also
+    // fires the AlertDialog's onOpenChange(false) below -- without this
+    // guard, confirming Restore would run this discard path a beat later
+    // and show "Local copy discarded" even though the restore just
+    // succeeded. Reset alongside `pendingDraft` whenever a new offer starts.
+    if (draftHandledRef.current) return;
+    draftHandledRef.current = true;
     if (userId) clearDraft(userId, surveyKey);
     setPendingDraft(null);
     toast({ title: "Local copy discarded" });
