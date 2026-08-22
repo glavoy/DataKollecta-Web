@@ -11,6 +11,7 @@
 import type { SurveyForm, SurveyPackage } from '@/types/survey';
 import { RULE, type Finding } from '../types';
 import { isBaseForm } from '@/lib/xml/manifest';
+import { buildFormScope } from '../scope';
 
 const TABLENAME_RE = /^[a-z_][a-z0-9_]*$/;
 
@@ -151,6 +152,71 @@ function baseFormCountFindings(pkg: SurveyPackage): Finding[] {
   ];
 }
 
+/**
+ * `entry_condition` and `repeatCountField` are the one place a *child*
+ * form's manifest field names a field on its *parent*, not on itself --
+ * `formManifestFindings` only ever resolves a form's fields against its own
+ * scope, so neither is checked anywhere else.
+ *
+ * Both are unambiguous field references, unlike a `logicCheck` bareword: the
+ * app (`parent_id_selector_screen.dart`) parses `entry_condition` as a
+ * literal `field=value` pair, never the AND/OR/quoted-literal grammar logic
+ * checks use, so there is no "maybe it's meant as a literal" reading to
+ * downgrade to a warning for. An unresolvable one isn't inert either -- the
+ * parent-record filter compares against a field that is never present, so
+ * every record fails the comparison and the picker silently offers zero
+ * eligible parents. Both are therefore errors, like `linkingFieldUnknown`.
+ */
+function parentFieldReferenceFindings(pkg: SurveyPackage): Finding[] {
+  const findings: Finding[] = [];
+  const byTablename = new Map<string, SurveyForm>();
+  for (const form of pkg.forms) {
+    const key = form.tablename?.trim().toLowerCase();
+    if (key) byTablename.set(key, form);
+  }
+
+  for (const form of pkg.forms) {
+    if (!form.parenttable) continue;
+    const parent = byTablename.get(form.parenttable.trim().toLowerCase());
+    if (!parent) continue; // reported by parentChainFindings instead
+
+    const scope = buildFormScope(parent);
+    const base = {
+      scope: 'form' as const,
+      formId: form.id,
+      tablename: form.tablename,
+      part: 'manifest' as const,
+    };
+
+    if (form.repeatCountField && scope.resolve(form.repeatCountField).kind === 'unknown') {
+      findings.push({
+        ...base,
+        ruleId: RULE.repeatCountFieldUnknown,
+        severity: 'error',
+        subject: form.repeatCountField,
+        message: `Repeat count field '${form.repeatCountField}' is not a field on the parent form '${form.parenttable}'.`,
+      });
+    }
+
+    if (form.entry_condition) {
+      const eq = form.entry_condition.indexOf('=');
+      const field = eq === -1 ? form.entry_condition : form.entry_condition.slice(0, eq).trim();
+      if (field && scope.resolve(field).kind === 'unknown') {
+        findings.push({
+          ...base,
+          ruleId: RULE.entryConditionUnknown,
+          severity: 'error',
+          subject: field,
+          message: `Entry condition references '${field}', which is not a field on the parent form '${form.parenttable}'.`,
+          hint: "The app matches this as a literal 'field=value' pair against the parent's records -- an unresolvable field means no parent record can ever match.",
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
 function packageIdentityFindings(pkg: SurveyPackage): Finding[] {
   const findings: Finding[] = [];
 
@@ -181,6 +247,7 @@ export function packageFindings(pkg: SurveyPackage): Finding[] {
   return [
     ...tablenameFindings(pkg),
     ...parentChainFindings(pkg),
+    ...parentFieldReferenceFindings(pkg),
     ...baseFormCountFindings(pkg),
     ...packageIdentityFindings(pkg),
   ];

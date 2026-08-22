@@ -76,6 +76,8 @@ export const RULE = {
   linkingFieldMissing: 'form.linkingfield.missing',
   linkingFieldUnknown: 'form.linkingfield.unknown',
   manifestFieldUnknown: 'form.manifest.unknownField',
+  entryConditionUnknown: 'form.entryCondition.unknownField',
+  repeatCountFieldUnknown: 'form.repeatCountField.unknownField',
   baseFormCount: 'package.baseForm.count',
   surveyIdMissing: 'package.surveyId.missing',
   databaseNameInvalid: 'package.databaseName.invalid',

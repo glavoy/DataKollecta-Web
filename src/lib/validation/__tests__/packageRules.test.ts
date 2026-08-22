@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { packageFindings } from '../rules/packageRules';
 import { RULE } from '../types';
-import type { SurveyForm, SurveyPackage } from '@/types/survey';
+import type { SurveyForm, SurveyPackage, SurveyQuestion } from '@/types/survey';
+
+const q = (fieldname: string): SurveyQuestion => ({
+  id: fieldname,
+  type: 'text',
+  fieldname,
+  fieldtype: 'text',
+  text: '',
+});
 
 const formOf = (tablename: string, extra: Partial<SurveyForm> = {}): SurveyForm => ({
   id: tablename,
@@ -100,6 +108,64 @@ describe('base form count', () => {
 
   it('is silent for an empty package (nothing to be wrong yet)', () => {
     expect(packageFindings(pkgOf([]))).toEqual([]);
+  });
+});
+
+describe('parent field references (entry_condition / repeatCountField)', () => {
+  it('is silent when both resolve against the parent', () => {
+    const findings = packageFindings(
+      pkgOf([
+        formOf('household', { questions: [q('enrolled'), q('num_members')] }),
+        formOf('member', {
+          parenttable: 'household',
+          entry_condition: 'enrolled=1',
+          repeatCountField: 'num_members',
+        }),
+      ]),
+    );
+    expect(
+      findings.filter((f) => f.ruleId === RULE.entryConditionUnknown || f.ruleId === RULE.repeatCountFieldUnknown),
+    ).toEqual([]);
+  });
+
+  it("errors when entry_condition's field is not on the parent", () => {
+    const findings = packageFindings(
+      pkgOf([
+        formOf('household'),
+        formOf('member', { parenttable: 'household', entry_condition: 'typo=1' }),
+      ]),
+    );
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: RULE.entryConditionUnknown, subject: 'typo' }),
+    );
+  });
+
+  it('never flags the literal value on the right of "="', () => {
+    const findings = packageFindings(
+      pkgOf([
+        formOf('household', { questions: [q('status')] }),
+        formOf('member', { parenttable: 'household', entry_condition: 'status=typo' }),
+      ]),
+    );
+    expect(findings.filter((f) => f.ruleId === RULE.entryConditionUnknown)).toEqual([]);
+  });
+
+  it('errors when repeatCountField is not on the parent', () => {
+    const findings = packageFindings(
+      pkgOf([formOf('household'), formOf('member', { parenttable: 'household', repeatCountField: 'typo' })]),
+    );
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: RULE.repeatCountFieldUnknown, subject: 'typo' }),
+    );
+  });
+
+  it('is silent when the parent itself is missing -- parentChainFindings owns that error', () => {
+    const findings = packageFindings(
+      pkgOf([formOf('member', { parenttable: 'nonexistent', entry_condition: 'typo=1', repeatCountField: 'typo' })]),
+    );
+    expect(
+      findings.filter((f) => f.ruleId === RULE.entryConditionUnknown || f.ruleId === RULE.repeatCountFieldUnknown),
+    ).toEqual([]);
   });
 });
 

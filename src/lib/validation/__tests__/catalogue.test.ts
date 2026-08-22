@@ -254,7 +254,12 @@ describe('cross-form and package rules', () => {
     record(
       pkgOf([
         formOf('t7', [q('a')], { primaryKey: 'typo', parenttable: 'parent1' }), // linkingFieldMissing
-        formOf('t7b', [q('a')], { parenttable: 'parent1', linkingfield: 'typo' }), // linkingFieldUnknown
+        formOf('t7b', [q('a')], {
+          parenttable: 'parent1',
+          linkingfield: 'typo', // linkingFieldUnknown
+          entry_condition: 'typo=1', // entryConditionUnknown
+          repeatCountField: 'typo', // repeatCountFieldUnknown
+        }),
         formOf('parent1', [q('pk')]),
       ]),
     );
