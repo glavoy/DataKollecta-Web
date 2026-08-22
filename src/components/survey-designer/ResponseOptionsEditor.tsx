@@ -13,6 +13,23 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, GripVertical, Database, List } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ResponseOptionsEditorProps {
   responses: ResponseOption[];
@@ -21,6 +38,56 @@ interface ResponseOptionsEditorProps {
   onDynamicChange: (config: DynamicResponseConfig | undefined) => void;
 }
 
+interface ResponseRowProps {
+  response: ResponseOption;
+  index: number;
+  onUpdate: (id: string, field: 'value' | 'label', newValue: string) => void;
+  onRemove: (id: string) => void;
+}
+
+/** The grip used to render but had no listeners at all -- it looked
+ *  draggable and did nothing. Wired up with the same @dnd-kit pattern
+ *  already proven for question reordering in SurveyDesigner/QuestionCard. */
+const ResponseRow = ({ response, index, onUpdate, onRemove }: ResponseRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: response.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+      <Input
+        placeholder="Value (stored)"
+        value={response.value}
+        onChange={(e) => onUpdate(response.id, 'value', e.target.value)}
+        className="w-24"
+      />
+      <Input
+        placeholder="Label (displayed)"
+        value={response.label}
+        onChange={(e) => onUpdate(response.id, 'label', e.target.value)}
+        className="flex-1"
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemove(response.id)}
+        className="text-destructive hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
 const ResponseOptionsEditor = ({
   responses,
   dynamicResponses,
@@ -28,6 +95,20 @@ const ResponseOptionsEditor = ({
   onDynamicChange,
 }: ResponseOptionsEditorProps) => {
   const [activeTab, setActiveTab] = useState<string>(dynamicResponses ? 'dynamic' : 'static');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleResponseDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = responses.findIndex(r => r.id === active.id);
+    const newIndex = responses.findIndex(r => r.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onChange(arrayMove(responses, oldIndex, newIndex));
+  };
 
   const addResponse = () => {
     onChange([
@@ -122,32 +203,21 @@ const ResponseOptionsEditor = ({
           </div>
 
           <div className="space-y-2">
-            {responses.map((response, index) => (
-              <div key={response.id} className="flex items-center gap-2">
-                <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
-                <Input
-                  placeholder="Value (stored)"
-                  value={response.value}
-                  onChange={(e) => updateResponse(response.id, 'value', e.target.value)}
-                  className="w-24"
-                />
-                <Input
-                  placeholder="Label (displayed)"
-                  value={response.label}
-                  onChange={(e) => updateResponse(response.id, 'label', e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeResponse(response.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleResponseDragEnd}>
+              <SortableContext items={responses.map(r => r.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {responses.map((response, index) => (
+                    <ResponseRow
+                      key={response.id}
+                      response={response}
+                      index={index}
+                      onUpdate={updateResponse}
+                      onRemove={removeResponse}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {responses.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
