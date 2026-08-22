@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, GripVertical, Database, List } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
   DndContext,
@@ -435,6 +436,17 @@ const ResponseOptionsEditor = ({
               <div className="space-y-4">
                 <Label className="font-medium">Additional Options</Label>
 
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="distinctResults"
+                    checked={dynamicResponses.distinct !== false}
+                    onCheckedChange={(checked) => updateDynamic('distinct', checked ? undefined : false)}
+                  />
+                  <Label htmlFor="distinctResults" className="text-xs font-normal cursor-pointer">
+                    Distinct results (skip duplicate rows)
+                  </Label>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-xs">Empty Message</Label>
                   <Input
@@ -461,8 +473,18 @@ const ResponseOptionsEditor = ({
                         placeholder="Label"
                         value={dynamicResponses.dontKnow?.label || ''}
                         onChange={(e) => {
-                          if (dynamicResponses.dontKnow?.value) {
-                            updateDynamic('dontKnow', { ...dynamicResponses.dontKnow, label: e.target.value });
+                          // Controlled by `value` above, which no-ops when
+                          // the Value field is empty -- typing here first
+                          // used to be silently discarded on every
+                          // keystroke rather than just on save. Value
+                          // itself may still be blank; only the presence of
+                          // *some* content here or there decides whether
+                          // the option is "on".
+                          const value = dynamicResponses.dontKnow?.value ?? '';
+                          if (!value && !e.target.value) {
+                            updateDynamic('dontKnow', undefined);
+                          } else {
+                            updateDynamic('dontKnow', { value, label: e.target.value });
                           }
                         }}
                         className="flex-1"
@@ -486,8 +508,11 @@ const ResponseOptionsEditor = ({
                         placeholder="Label"
                         value={dynamicResponses.notInList?.label || ''}
                         onChange={(e) => {
-                          if (dynamicResponses.notInList?.value) {
-                            updateDynamic('notInList', { ...dynamicResponses.notInList, label: e.target.value });
+                          const value = dynamicResponses.notInList?.value ?? '';
+                          if (!value && !e.target.value) {
+                            updateDynamic('notInList', undefined);
+                          } else {
+                            updateDynamic('notInList', { value, label: e.target.value });
                           }
                         }}
                         className="flex-1"
