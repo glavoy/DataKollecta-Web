@@ -10,6 +10,7 @@
 import type { CalculationConfig, SurveyQuestion } from '@/types/survey';
 import { constantOf } from '@/types/survey';
 import { normalizeCalculation } from './calculation';
+import { stripGeneratedQuestions } from './systemFields';
 
 /** The pre-recursive shape: string results, `elseResult`, no `parts`. */
 interface LegacyCalculation {
@@ -88,7 +89,26 @@ function upgradeQuestion(raw: unknown): SurveyQuestion {
   return q as SurveyQuestion;
 }
 
-export function normalizeStoredQuestions(raw: unknown): SurveyQuestion[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map(upgradeQuestion);
+/**
+ * Upgrades a stored `crfs.fields` array to the current model, then strips any
+ * reserved system field or `end_of_questions` row that shouldn't be there.
+ *
+ * `SurveyForm.questions` is documented as authored-only -- `withSystemFields`
+ * adds these at generation time and never expects them stored. The import
+ * path (`parseSurveyDocument`) has always enforced this on upload; this is
+ * the same enforcement for packages already in the database, some of which
+ * predate that import-side strip and still carry the generated rows. Their
+ * presence is what makes `question.fieldname.reserved` and
+ * `question.calculation.missing` fire for every one of them on load -- a
+ * real validation-engine finding on real bad data, not a rule to relax.
+ *
+ * Self-healing: the next save persists the cleaned array, so there is no
+ * migration to run.
+ */
+export function normalizeStoredQuestions(raw: unknown): {
+  questions: SurveyQuestion[];
+  endText?: string;
+} {
+  if (!Array.isArray(raw)) return { questions: [] };
+  return stripGeneratedQuestions(raw.map(upgradeQuestion));
 }

@@ -191,6 +191,14 @@ export const surveyService = {
         const normalizeEmpty = (val: string | null | undefined) =>
           val && val.trim() !== '' ? val : undefined;
 
+        // Upgrade on read: packages saved before the type model gained
+        // recursive calculations and an explicit response mode would
+        // otherwise emit XML the app misreads. Also strips any reserved
+        // system field or end_of_questions row a package saved before the
+        // import-side strip (fc08169) still carries -- see the doc comment
+        // on normalizeStoredQuestions.
+        const normalized = normalizeStoredQuestions(crf.fields);
+
         return {
           id: crf.id,
           tablename: crf.table_name,
@@ -202,11 +210,11 @@ export const surveyService = {
           idconfig: cleanIdConfig?.prefix !== undefined || cleanIdConfig?.fields?.length > 0
             ? cleanIdConfig
             : undefined,
-          // Upgrade on read: packages saved before the type model gained
-          // recursive calculations and an explicit response mode would
-          // otherwise emit XML the app misreads.
-          questions: normalizeStoredQuestions(crf.fields),
-          endOfQuestionsText: normalizeEmpty(formConfig.endOfQuestionsText),
+          questions: normalized.questions,
+          // _formConfig is the explicit setting; a recovered end-screen
+          // string pulled out of a stray stored row is the fallback.
+          endOfQuestionsText:
+            normalizeEmpty(formConfig.endOfQuestionsText) ?? normalized.endText,
           autoStartRepeat: typeof crf.auto_start_repeat === 'number' ? crf.auto_start_repeat : (crf.auto_start_repeat ? 1 : 0),
           repeatEnforceCount: crf.repeat_enforce_count || 1,
           primaryKey: normalizeEmpty(crf.primary_key),
