@@ -47,18 +47,9 @@ import {
   Eye,
   EyeOff
 } from "lucide-react";
-import { teamService } from "@/services/teamService";
+import { teamService, type FieldWorker } from "@/services/teamService";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
-
-interface FieldWorker {
-  id: string;
-  username: string;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -82,6 +73,12 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
 
   // Delete confirmation
   const [workerToDelete, setWorkerToDelete] = useState<FieldWorker | null>(null);
+
+  // Edit dialog state
+  const [workerToEdit, setWorkerToEdit] = useState<FieldWorker | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const canManage = userRole === 'owner' || userRole === 'editor';
 
@@ -180,6 +177,53 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
         description: error.message || "Failed to update credential status.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleOpenEdit = (worker: FieldWorker) => {
+    setWorkerToEdit(worker);
+    setEditUsername(worker.username);
+    setEditDescription(worker.description || "");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workerToEdit) return;
+
+    if (!editUsername.trim()) {
+      toast({
+        title: "Error",
+        description: "Username is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await teamService.updateCredential(workerToEdit.id, {
+        username: editUsername.trim(),
+        description: editDescription.trim() || null,
+      });
+      toast({
+        title: "Credential updated",
+        description: `Changes to "${editUsername}" have been saved.`,
+      });
+      setWorkerToEdit(null);
+      loadWorkers();
+    } catch (error: any) {
+      // (project_id, username) is unique -- surface a real collision as a
+      // real message instead of the raw Postgres constraint text.
+      const isDuplicate = error?.code === '23505' || /duplicate key/i.test(error?.message || '');
+      toast({
+        title: "Error",
+        description: isDuplicate
+          ? `"${editUsername}" is already in use on this project.`
+          : error.message || "Failed to update credential.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -304,6 +348,9 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleOpenEdit(worker)}>
+                            Edit
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleToggleStatus(worker)}>
                             {worker.is_active ? 'Disable' : 'Enable'}
                           </DropdownMenuItem>
@@ -395,6 +442,54 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
               <Button type="submit" disabled={adding}>
                 {adding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Credential
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Credential Dialog -- username/description only. Password reset
+          needs a server-side RPC since passwords are bcrypt-hashed and the
+          plaintext never reaches the client; that's a separate change. */}
+      <Dialog open={!!workerToEdit} onOpenChange={(open) => !open && setWorkerToEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Field Team Credential</DialogTitle>
+            <DialogDescription>
+              Update the username or description for this credential.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveEdit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-username">Username</Label>
+                <Input
+                  id="edit-username"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder="e.g., surveyor1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description (optional)</Label>
+                <Input
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="e.g., John's phone, Tablet #3"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWorkerToEdit(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
               </Button>
             </DialogFooter>
           </form>

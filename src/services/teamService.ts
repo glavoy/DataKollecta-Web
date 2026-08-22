@@ -5,9 +5,13 @@ export interface FieldWorker {
   id: string;
   username: string;
   project_id: string;
-  description?: string;
+  // Nullable, not just optional -- that's what Postgres actually returns
+  // for these columns (see app_credentials in the schema migration), and a
+  // stricter local type in ProjectFieldTeam.tsx used to silently disagree
+  // with this one, breaking the type check the moment their two shapes met.
+  description?: string | null;
   is_active: boolean;
-  last_used_at?: string;
+  last_used_at?: string | null;
   created_at: string;
 }
 
@@ -52,6 +56,24 @@ export const teamService = {
 
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * Update a credential's username and/or description. Never touches the
+   * password -- that's bcrypt-hashed server-side by create_app_credential
+   * and the plaintext never reaches the client, so resetting it needs its
+   * own RPC, not a plain update.
+   */
+  async updateCredential(credentialId: string, updates: { username?: string; description?: string | null }) {
+    const { error } = await supabase
+      .from("app_credentials")
+      .update(updates)
+      .eq("id", credentialId);
+
+    // (project_id, username) is unique -- a rename that collides with an
+    // existing credential on the same project surfaces here rather than
+    // being swallowed, so the caller can show the real reason it failed.
+    if (error) throw error;
   },
 
   /**
