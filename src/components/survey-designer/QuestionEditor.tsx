@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SurveyQuestion, QuestionType, FieldType } from "@/types/survey";
+import { SurveyQuestion, QuestionType, FieldType, CsvFile } from "@/types/survey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,8 @@ interface QuestionEditorProps {
   onSave: (question: SurveyQuestion) => void;
   /** Which tab to land on, e.g. when opened from an issues-panel finding. */
   initialTab?: 'basic' | 'responses' | 'validation' | 'logic';
+  /** The survey's uploaded CSV files, for the dynamic-response file/column pickers. */
+  csvFiles?: CsvFile[];
 }
 
 // Helper to determine what configuration options to show based on question type and field type
@@ -158,7 +160,7 @@ const parseWidth = (raw: string): { value: number | undefined; fixed: boolean | 
   return { value: n, fixed: fixed || undefined };
 };
 
-const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, initialTab }: QuestionEditorProps) => {
+const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, initialTab, csvFiles }: QuestionEditorProps) => {
   // Initialize synchronously from prop to avoid render flash/null issues
   const [editedQuestion, setEditedQuestion] = useState<SurveyQuestion | null>(() =>
     question ? JSON.parse(JSON.stringify(question)) : null
@@ -416,6 +418,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                   dynamicResponses={editedQuestion.dynamicResponses}
                   onChange={(responses) => update('responses', responses)}
                   onDynamicChange={(dynamic) => update('dynamicResponses', dynamic)}
+                  csvFiles={csvFiles}
                 />
               )}
               {config.showCalculation && (

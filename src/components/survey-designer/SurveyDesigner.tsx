@@ -725,6 +725,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         onOpenChange={setShowQuestionEditor}
         onSave={handleSaveQuestion}
         initialTab={initialEditorTab}
+        csvFiles={surveyPackage.csvFiles}
       />
 
       {/* Issues Panel */}

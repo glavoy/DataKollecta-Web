@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { ResponseOption, DynamicResponseConfig } from "@/types/survey";
+import { useMemo, useState } from "react";
+import { ResponseOption, DynamicResponseConfig, CsvFile } from "@/types/survey";
+import { parseCsvHeaderRow } from "@/lib/csvHeaders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +37,48 @@ interface ResponseOptionsEditorProps {
   dynamicResponses?: DynamicResponseConfig;
   onChange: (responses: ResponseOption[]) => void;
   onDynamicChange: (config: DynamicResponseConfig | undefined) => void;
+  /** The survey's uploaded CSV files. When present, the CSV file and its
+   *  display/value columns become pickers instead of free text. */
+  csvFiles?: CsvFile[];
 }
+
+/** A <Select> of `options`, falling back to a free-text <Input> when there's
+ *  nothing to pick from -- an unselected file, or a file with no parsable
+ *  header row. If the current value isn't among the options (a column
+ *  renamed upstream, a hand-edited package), it's kept as a selectable
+ *  entry rather than silently disappearing from the field. */
+const PickerOrInput = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder: string;
+  className?: string;
+}) => {
+  if (options.length === 0) {
+    return (
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={className} />
+    );
+  }
+  const items = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <Select value={value || undefined} onValueChange={onChange}>
+      <SelectTrigger className={className}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => (
+          <SelectItem key={item} value={item}>{item}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
 
 interface ResponseRowProps {
   response: ResponseOption;
@@ -93,8 +135,16 @@ const ResponseOptionsEditor = ({
   dynamicResponses,
   onChange,
   onDynamicChange,
+  csvFiles,
 }: ResponseOptionsEditorProps) => {
   const [activeTab, setActiveTab] = useState<string>(dynamicResponses ? 'dynamic' : 'static');
+
+  const csvFilenames = useMemo(() => (csvFiles ?? []).map((f) => f.filename), [csvFiles]);
+  const selectedCsvHeaders = useMemo(() => {
+    if (dynamicResponses?.source !== 'csv' || !dynamicResponses.file) return [];
+    const file = (csvFiles ?? []).find((f) => f.filename === dynamicResponses.file);
+    return file ? parseCsvHeaderRow(file.content) : [];
+  }, [csvFiles, dynamicResponses?.source, dynamicResponses?.file]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -251,13 +301,16 @@ const ResponseOptionsEditor = ({
               {dynamicResponses.source === 'csv' ? (
                 <div className="space-y-2">
                   <Label>CSV File Name</Label>
-                  <Input
+                  <PickerOrInput
                     value={dynamicResponses.file || ''}
-                    onChange={(e) => updateDynamic('file', e.target.value)}
+                    onChange={(v) => updateDynamic('file', v)}
+                    options={csvFilenames}
                     placeholder="e.g., locations.csv"
                   />
                   <p className="text-xs text-muted-foreground">
-                    CSV file must be included in the survey package
+                    {csvFilenames.length > 0
+                      ? 'Selected from the files uploaded in Survey Settings'
+                      : 'CSV file must be included in the survey package'}
                   </p>
                 </div>
               ) : (
@@ -275,9 +328,10 @@ const ResponseOptionsEditor = ({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Display Column</Label>
-                  <Input
+                  <PickerOrInput
                     value={dynamicResponses.displayColumn}
-                    onChange={(e) => updateDynamic('displayColumn', e.target.value)}
+                    onChange={(v) => updateDynamic('displayColumn', v)}
+                    options={selectedCsvHeaders}
                     placeholder="e.g., name"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -286,9 +340,10 @@ const ResponseOptionsEditor = ({
                 </div>
                 <div className="space-y-2">
                   <Label>Value Column</Label>
-                  <Input
+                  <PickerOrInput
                     value={dynamicResponses.valueColumn}
-                    onChange={(e) => updateDynamic('valueColumn', e.target.value)}
+                    onChange={(v) => updateDynamic('valueColumn', v)}
+                    options={selectedCsvHeaders}
                     placeholder="e.g., id"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -316,10 +371,11 @@ const ResponseOptionsEditor = ({
 
                 {dynamicResponses.filters.map((filter, index) => (
                   <div key={index} className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border">
-                    <Input
-                      placeholder="Column"
+                    <PickerOrInput
                       value={filter.column}
-                      onChange={(e) => updateFilter(index, 'column', e.target.value)}
+                      onChange={(v) => updateFilter(index, 'column', v)}
+                      options={selectedCsvHeaders}
+                      placeholder="Column"
                       className="w-28"
                     />
                     <Select
