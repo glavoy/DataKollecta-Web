@@ -35,7 +35,14 @@ const ValidationEditor = ({
   const showNumeric = ['text_integer', 'text_decimal'].includes(fieldtype) && questionType === 'text';
   const showDate = ['date', 'datetime'].includes(fieldtype);
   const showLogic = questionType !== 'information';
-  const showUnique = questionType === 'text';
+  // survey_screen.dart's uniqueness check runs in _next() for whichever
+  // question is currently displayed, keyed only by fieldname -- unlike
+  // numericCheck/mask/maxCharacters (all gated behind `q.type == text`
+  // deep inside _buildText's formatters), it reads _answers[fieldName]
+  // generically, so it works for radio/checkbox/combobox/date/datetime
+  // too. Only information (no stored answer) and calculated (never
+  // interactively displayed) are truly inert.
+  const showUnique = questionType !== 'information' && questionType !== 'calculated';
 
   // Logic check helpers
   const addLogicCheck = () => {

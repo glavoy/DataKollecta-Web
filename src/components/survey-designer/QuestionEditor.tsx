@@ -45,14 +45,19 @@ interface QuestionEditorProps {
 const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
   const isTextInput = questionType === 'text';
   const isSelectType = ['radio', 'checkbox', 'combobox'].includes(questionType);
-  const isDateType = ['date', 'datetime'].includes(questionType);
   const isCalculated = questionType === 'calculated';
   const isInformation = questionType === 'information';
-  const isNumericField = ['text_integer', 'text_decimal'].includes(fieldType);
   const needsMaxChars = ['text', 'text_integer', 'text_decimal', 'hourmin'].includes(fieldType);
 
   return {
     // Basic tab options
+    // maxCharacters/mask: confirmed against question_views.dart -- both are
+    // only ever applied by _buildText's input formatters, which render
+    // exclusively for QuestionType.text. A calculated or combobox question
+    // never reaches that renderer, so a control here for them would set a
+    // value the app can never act on. Not widened, despite the emitter and
+    // validator both accepting either field on any type -- neither one
+    // second-guesses the type model, so "accepted" isn't "has an effect".
     showMaxCharacters: isTextInput && needsMaxChars,
     showMask: isTextInput,
     showDontKnowRefuseNa: !isInformation && !isCalculated,
@@ -60,15 +65,6 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
     // Responses tab
     showResponses: isSelectType,
     showCalculation: isCalculated,
-
-    // Validation tab
-    showNumericCheck: isTextInput && isNumericField,
-    showDateRange: isDateType,
-    showLogicCheck: !isInformation,
-    showUniqueCheck: isTextInput,
-
-    // Skip Logic tab
-    showSkipLogic: true,
 
     // Whether to show field type selector (or auto-set)
     allowFieldTypeEdit: isTextInput || isCalculated,
@@ -271,7 +267,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                 {middleTabLabel}
               </TabsTrigger>
               <TabsTrigger value="validation">Validation</TabsTrigger>
-              <TabsTrigger value="logic" disabled={!config.showSkipLogic}>Skip Logic</TabsTrigger>
+              <TabsTrigger value="logic">Skip Logic</TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4 mt-4">
