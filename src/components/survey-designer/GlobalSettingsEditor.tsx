@@ -55,15 +55,21 @@ const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave }: Glo
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (open) {
-            // Deep copy to preserve forms array
-            setEditedPackage({
-                ...surveyPackage,
-                forms: surveyPackage.forms.map(f => ({ ...f })),
-                csvFiles: surveyPackage.csvFiles?.map(c => ({ ...c })) || []
-            });
-        }
-    }, [open, surveyPackage]);
+        if (!open) return;
+        // Deep copy to preserve forms array. Deliberately keyed on `open`
+        // alone: this is a modal edit buffer, so the only correct time to
+        // seed it is the moment it opens. Depending on `surveyPackage` too
+        // meant any edit elsewhere while the sheet was open -- including
+        // this sheet's own save, which changes the package's identity --
+        // could re-seed the buffer out from under whatever the user had
+        // just typed into it.
+        setEditedPackage({
+            ...surveyPackage,
+            forms: surveyPackage.forms.map(f => ({ ...f })),
+            csvFiles: surveyPackage.csvFiles?.map(c => ({ ...c })) || []
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above; re-seeding on surveyPackage changes is the bug being fixed
+    }, [open]);
 
     const update = <K extends keyof SurveyPackage>(field: K, value: SurveyPackage[K]) => {
         setEditedPackage(prev => ({ ...prev, [field]: value }));

@@ -28,12 +28,17 @@ export const surveyService = {
     const sanitizedName = surveyName.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
     const filePath = `${projectId}/${sanitizedName}.zip`;
 
-    // Delete existing file if it exists (for updates)
-    await supabase.storage.from('surveys').remove([filePath]);
-
+    // `upsert: true` overwrites the object atomically from the client's
+    // perspective. The previous implementation deleted the object first and
+    // uploaded second -- if the upload then failed (a dropped connection
+    // mid-zip is exactly the kind of thing that fails), the previous zip
+    // was already gone. That matters beyond "no download link": CSV content
+    // lives only inside this zip (see `loadCsvFilesFromZip`), so a failed
+    // save after a delete-then-upload could permanently destroy every CSV
+    // in the survey while the database row still pointed at nothing.
     const { error: uploadError } = await supabase.storage
       .from('surveys')
-      .upload(filePath, zipBlob);
+      .upload(filePath, zipBlob, { upsert: true, contentType: 'application/zip' });
 
     if (uploadError) throw uploadError;
 
@@ -97,6 +102,24 @@ export const surveyService = {
       if (crfError) throw crfError;
     }
 
+    // 4b. Delete `crfs` rows for forms no longer in the package. Without
+    // this, deleting a form in the designer only removes it from local
+    // state -- the row survives, and `getSurveyPackage` selects every row
+    // for the survey, so the "deleted" form comes back on the next load.
+    // Skipped when the package has no forms at all: that shape is almost
+    // certainly a bug upstream (a load gone wrong, an adoption race), and
+    // mass-deleting every CRF on the strength of it is not recoverable.
+    if (pkg.forms.length > 0) {
+      const currentFormIds = pkg.forms.map(f => f.id);
+      const { error: pruneError } = await supabase
+        .from('crfs')
+        .delete()
+        .eq('survey_package_id', surveyPackage.id)
+        .not('id', 'in', `(${currentFormIds.join(',')})`);
+
+      if (pruneError) throw pruneError;
+    }
+
     // 5. Store CSV file metadata in survey_packages manifest for retrieval
     // CSV content is stored in the zip file; metadata stored in manifest
     // We'll update the manifest to include csvFiles list
@@ -119,7 +142,7 @@ export const surveyService = {
    * Loads the survey package for a specific survey_package_id.
    * Returns the survey with all its CRFs/questionnaires.
    */
-  async getSurveyPackage(surveyPackageId: string): Promise<SurveyPackage> {
+  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null }> {
     // 1. Fetch the survey package
     const { data: survey, error: surveyError } = await supabase
       .from('survey_packages')
@@ -193,7 +216,7 @@ export const surveyService = {
         };
       })
     };
-    return pkg;
+    return { pkg, serverUpdatedAt: survey.updated_at ?? null };
   },
 
   /**
@@ -240,7 +263,7 @@ export const surveyService = {
    * Gets the most recent active survey package for a project.
    * Useful for loading the latest survey version.
    */
-  async getLatestSurveyForProject(projectId: string): Promise<SurveyPackage | null> {
+  async getLatestSurveyForProject(projectId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null } | null> {
     // Fetch the most recent survey package
     const { data: survey, error: surveyError } = await supabase
       .from('survey_packages')

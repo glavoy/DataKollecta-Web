@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom"; // Added Link
 import { SurveyPackage, SurveyForm, SurveyQuestion, QuestionType } from "@/types/survey";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,8 @@ import { surveyService } from "@/services/surveyService";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { validatePackage, type Finding, type FindingPart } from "@/lib/validation";
+import { useDraftMirror } from "@/hooks/useDraftMirror";
+import { surveyDraftKey, readDraft, clearDraft, evaluateDraft, type SurveyDraft } from "@/lib/draftStorage";
 
 // Get default field type based on question type
 const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] => {
@@ -86,10 +88,19 @@ const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] =>
   }
 };
 
+// `Date.now()` reads the same millisecond for two items created in a fast
+// double-click or a duplicate-then-duplicate, producing identical
+// fieldnames/tablenames -- the validation engine now catches the resulting
+// duplicate, but the generator shouldn't produce it. A short random suffix
+// derived from the same `crypto` already used for `id` is enough entropy to
+// make a same-tick collision practically impossible without needing a
+// counter to be threaded through and persisted anywhere.
+const shortId = (): string => crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+
 const createDefaultQuestion = (type: QuestionType): SurveyQuestion => ({
   id: crypto.randomUUID(),
   type,
-  fieldname: `field_${Date.now()}`,
+  fieldname: `field_${shortId()}`,
   fieldtype: getDefaultFieldType(type),
   text: '',
   responses: ['radio', 'checkbox', 'combobox'].includes(type) ? [] : undefined,
@@ -100,7 +111,7 @@ const createDefaultQuestion = (type: QuestionType): SurveyQuestion => ({
 
 const createDefaultForm = (): SurveyForm => ({
   id: crypto.randomUUID(),
-  tablename: `form_${Date.now()}`,
+  tablename: `form_${shortId()}`,
   displayname: 'New Form',
   displayOrder: 0,
   autoStartRepeat: 0,
@@ -110,18 +121,25 @@ const createDefaultForm = (): SurveyForm => ({
 
 interface SurveyDesignerProps {
   initialPackage?: SurveyPackage;
-  onSave?: (pkg: SurveyPackage) => void;
+  /** `survey_packages.updated_at` for `initialPackage`, if it came from the
+   *  server -- the token the draft mirror compares against to decide
+   *  whether a local draft is still sitting on top of what's live. */
+  serverUpdatedAt?: string | null;
+  /** The route's survey id, if editing an existing survey. Used only to key
+   *  the local draft -- a new survey has no stable id to key on, see
+   *  `surveyDraftKey`. */
+  surveyRecordId?: string;
   projectId?: string | null;
   projectSlug?: string;
   userId?: string;
 }
 
-const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId }: SurveyDesignerProps) => {
+const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId }: SurveyDesignerProps) => {
   const { toast } = useToast();
   const [surveyPackage, setSurveyPackage] = useState<SurveyPackage>(
     initialPackage || {
       id: crypto.randomUUID(),
-      surveyId: `survey_${Date.now()}`,
+      surveyId: `survey_${shortId()}`,
       name: 'New Survey Package',
       forms: [createDefaultForm()],
       csvFiles: [],
@@ -140,6 +158,18 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
   const [deleteFormId, setDeleteFormId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // True whenever `surveyPackage` holds edits the project doesn't have.
+  // Drives the Save Draft/Publish affordance, the local draft mirror, and
+  // the unsaved-changes warning on tab close -- cleared only on a
+  // successful server save or when a freshly-loaded survey is adopted.
+  const [dirty, setDirty] = useState(false);
+
+  // The server's `updated_at` for whatever is currently the "clean"
+  // baseline -- reset on load and after every successful save. This is what
+  // the draft mirror stamps a local draft with, and what a later restore
+  // compares against to know whether the server has moved on since.
+  const baseServerUpdatedAtRef = useRef<string | null>(serverUpdatedAt ?? null);
+
   // Recomputed whenever the package object changes identity, which
   // updatePackage always does -- every edit replaces the whole object, so
   // this stays in sync without a separate effect or a debounce. Not
@@ -154,22 +184,89 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
     })
   );
 
-  // Sync state when initialPackage changes (e.g. after async load)
+  const surveyKey = surveyDraftKey(surveyRecordId, projectId ?? null);
+  const [pendingDraft, setPendingDraft] = useState<{ draft: SurveyDraft; staleBase: boolean } | null>(null);
+
+  // Adopt `initialPackage` only when the survey it represents actually
+  // changes -- keyed on the package's own id, not on the prop's object
+  // identity. A parent re-render that hands down the *same* survey again
+  // (a token refresh used to do exactly this) must never overwrite whatever
+  // the user has typed since. See AuthContext/SurveyDesignerPage for the
+  // upstream fixes that make this a defense-in-depth guard rather than the
+  // only thing standing between a refresh and lost work.
+  const adoptedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (initialPackage) {
-      setSurveyPackage(initialPackage);
-      if (initialPackage.forms.length > 0) {
-        setActiveFormId(initialPackage.forms[0].id);
-      }
+    if (!initialPackage) return;
+    if (adoptedIdRef.current === initialPackage.id) return;
+    adoptedIdRef.current = initialPackage.id;
+
+    setSurveyPackage(initialPackage);
+    setActiveFormId(initialPackage.forms[0]?.id ?? '');
+    setDirty(false);
+    baseServerUpdatedAtRef.current = serverUpdatedAt ?? null;
+
+    if (!userId) return;
+    const draft = readDraft(userId, surveyKey);
+    const evaluation = evaluateDraft(draft, initialPackage, serverUpdatedAt ?? null);
+    if (evaluation.kind === 'redundant') {
+      clearDraft(userId, surveyKey);
+    } else if (evaluation.kind === 'offer') {
+      setPendingDraft({ draft: evaluation.draft, staleBase: evaluation.staleBase });
     }
-  }, [initialPackage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on initialPackage/serverUpdatedAt only; userId/surveyKey are read for the one-time draft check on adoption, not meant to re-run this
+  }, [initialPackage, serverUpdatedAt]);
+
+  useDraftMirror({
+    enabled: dirty && !!userId,
+    pkg: surveyPackage,
+    userId,
+    surveyKey,
+    baseServerUpdatedAtRef,
+  });
+
+  // A close/refresh within the draft mirror's debounce window is the one
+  // gap it can't cover on its own.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   const activeForm = surveyPackage.forms.find(f => f.id === activeFormId);
 
-  const updatePackage = (updates: Partial<SurveyPackage>) => {
-    const updated = { ...surveyPackage, ...updates };
-    setSurveyPackage(updated);
-    onSave?.(updated);
+  // Accepts either a partial to merge or an updater keyed off the previous
+  // package -- functional so a burst of edits in one tick (or one render)
+  // never silently drops one the way a plain `{...surveyPackage, ...x}`
+  // closing over stale state would.
+  const updatePackage = (
+    update: Partial<SurveyPackage> | ((prev: SurveyPackage) => Partial<SurveyPackage>)
+  ) => {
+    setSurveyPackage(prev => ({ ...prev, ...(typeof update === 'function' ? update(prev) : update) }));
+    setDirty(true);
+  };
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    const { draft } = pendingDraft;
+    const restored: SurveyPackage = {
+      ...draft.pkg,
+      csvFiles: (surveyPackage.csvFiles ?? []).filter(f => draft.csvFilenames.includes(f.filename)),
+    };
+    setSurveyPackage(restored);
+    setActiveFormId(restored.forms[0]?.id ?? '');
+    setDirty(true); // restored work is still unsaved
+    if (userId) clearDraft(userId, surveyKey);
+    setPendingDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    if (userId) clearDraft(userId, surveyKey);
+    setPendingDraft(null);
+    toast({ title: "Local copy discarded" });
   };
 
   const handleSaveToProject = async (status: 'draft' | 'active' = 'draft') => {
@@ -208,7 +305,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
       const surveyName = surveyPackage.surveyId ||
         surveyDisplayName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-      await surveyService.saveSurveyPackage(
+      const savedRow = await surveyService.saveSurveyPackage(
         surveyPackage,
         projectId,
         userId,
@@ -216,6 +313,10 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         surveyName,
         status
       );
+
+      setDirty(false);
+      baseServerUpdatedAtRef.current = savedRow?.updated_at ?? null;
+      if (userId) clearDraft(userId, surveyKey);
 
       toast({
         title: "Success",
@@ -234,23 +335,23 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
   };
 
   const updateForm = (formId: string, updates: Partial<SurveyForm>) => {
-    updatePackage({
-      forms: surveyPackage.forms.map(f =>
+    updatePackage(prev => ({
+      forms: prev.forms.map(f =>
         f.id === formId ? { ...f, ...updates } : f
       )
-    });
+    }));
   };
 
   const addForm = () => {
     const newForm = createDefaultForm();
     newForm.displayOrder = surveyPackage.forms.length;
-    updatePackage({ forms: [...surveyPackage.forms, newForm] });
+    updatePackage(prev => ({ forms: [...prev.forms, newForm] }));
     setActiveFormId(newForm.id);
   };
 
   const deleteForm = (formId: string) => {
     const remaining = surveyPackage.forms.filter(f => f.id !== formId);
-    updatePackage({ forms: remaining });
+    updatePackage(prev => ({ forms: prev.forms.filter(f => f.id !== formId) }));
     if (activeFormId === formId && remaining.length > 0) {
       setActiveFormId(remaining[0].id);
     }
@@ -265,7 +366,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
       displayname: `${form.displayname} (Copy)`,
       questions: form.questions.map(q => ({ ...q, id: crypto.randomUUID() })),
     };
-    updatePackage({ forms: [...surveyPackage.forms, newForm] });
+    updatePackage(prev => ({ forms: [...prev.forms, newForm] }));
     setActiveFormId(newForm.id);
   };
 
@@ -628,7 +729,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         surveyPackage={surveyPackage}
         open={showGlobalSettings}
         onOpenChange={setShowGlobalSettings}
-        onSave={setSurveyPackage}
+        onSave={(pkg) => updatePackage(pkg)}
       />
 
       {/* XML Preview Dialog */}
@@ -661,6 +762,45 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
             >
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore Unsaved Changes -- a blocking dialog rather than a
+          dismissible banner. A banner would let editing continue on a
+          package that's about to be replaced, and "restore" would then
+          destroy whatever was typed after the reload; the decision is one
+          click, so it isn't worth that risk. */}
+      <AlertDialog open={!!pendingDraft} onOpenChange={(open) => !open && handleDiscardDraft()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  You have unsaved changes to &quot;{pendingDraft?.draft.pkg.name || 'this survey'}&quot; from{' '}
+                  {pendingDraft && new Date(pendingDraft.draft.savedAt).toLocaleString()} that were never saved to
+                  the project.
+                </p>
+                {pendingDraft?.staleBase && (
+                  <p>
+                    This project was also saved elsewhere since. Restoring will replace what&apos;s currently on
+                    screen with your local copy.
+                  </p>
+                )}
+                {pendingDraft && pendingDraft.draft.csvFilenames.some(
+                  (name) => !(surveyPackage.csvFiles ?? []).some((f) => f.filename === name)
+                ) && (
+                  <p>
+                    CSV files added since the last save can&apos;t be recovered and will need re-uploading.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDiscardDraft}>Discard local copy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreDraft}>Restore changes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
