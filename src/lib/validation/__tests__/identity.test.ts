@@ -66,6 +66,13 @@ describe('fieldname legality', () => {
     const findings = identityFindings(formOf([q('1Bad')]));
     expect(findings).toEqual([expect.objectContaining({ ruleId: RULE.fieldnameLeadingDigit })]);
   });
+
+  it("rejects 'end' -- reserved as the End of Form skip target", () => {
+    const findings = identityFindings(formOf([q('end')]));
+    expect(findings).toEqual([
+      expect.objectContaining({ ruleId: RULE.fieldnameReserved, subject: 'end' }),
+    ]);
+  });
 });
 
 describe('duplicate fieldnames', () => {

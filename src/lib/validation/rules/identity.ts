@@ -81,6 +81,26 @@ function fieldnameFindings(q: SurveyQuestion, index: number): Finding[] {
       },
     ];
   }
+  // 'end' is the app's own end-of-form skip sentinel (see
+  // SkipLogicEditor's "End of Form" option and references.ts's handling of
+  // skiptofieldname='end'), checked by the app *before* any fieldname
+  // lookup -- so a real field named 'end' could never be skipped to by
+  // name. Deliberately not part of RESERVED_SYSTEM_FIELDNAMES: that set
+  // drives withSystemFields/stripGeneratedQuestions dropping a declared row
+  // with the name on every round-trip, which is wrong here -- a row named
+  // 'end' should be rejected outright, not silently discarded.
+  if (name.toLowerCase() === 'end') {
+    return [
+      {
+        ...base,
+        ruleId: RULE.fieldnameReserved,
+        severity: 'error',
+        subject: name,
+        message: `Field name '${name}' is reserved as the End of Form skip target.`,
+        hint: 'Use a different field name.',
+      },
+    ];
+  }
 
   return [];
 }
