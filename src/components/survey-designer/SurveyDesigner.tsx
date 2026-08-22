@@ -57,9 +57,10 @@ import QuestionEditor from "./QuestionEditor";
 import FormManifestEditor from "./FormManifestEditor";
 import XmlPreview from "./XmlPreview";
 import GlobalSettingsEditor from "./GlobalSettingsEditor";
+import IssuesPanel from "./IssuesPanel";
 import { surveyService } from "@/services/surveyService";
 import { useToast } from "@/hooks/use-toast";
-import { validatePackage } from "@/lib/validation";
+import { validatePackage, type Finding, type FindingPart } from "@/lib/validation";
 
 // Get default field type based on question type
 const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] => {
@@ -130,6 +131,8 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
   const [showFormSettings, setShowFormSettings] = useState(false);
   const [showXmlPreview, setShowXmlPreview] = useState(false);
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+  const [showIssues, setShowIssues] = useState(false);
+  const [initialEditorTab, setInitialEditorTab] = useState<'basic' | 'responses' | 'validation' | 'logic'>('basic');
   const [deleteFormId, setDeleteFormId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -253,6 +256,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
     });
     setShowAddQuestion(false);
     setEditingQuestion(newQuestion);
+    setInitialEditorTab('basic');
     setShowQuestionEditor(true);
   };
 
@@ -263,6 +267,52 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         q.id === question.id ? question : q
       )
     });
+  };
+
+  /** Which QuestionEditor tab a finding's `part` lives on. */
+  const tabForPart = (part: FindingPart | undefined): typeof initialEditorTab => {
+    switch (part) {
+      case 'responses':
+      case 'dynamicResponses':
+      case 'calculation':
+        return 'responses'; // same tab slot -- toggles between Responses/Calculation by question type
+      case 'numericCheck':
+      case 'dateRange':
+      case 'logicCheck':
+      case 'uniqueCheck':
+        return 'validation';
+      case 'preskip':
+      case 'postskip':
+        return 'logic';
+      default:
+        return 'basic'; // identity, text, maxCharacters, mask, specialAnswers
+    }
+  };
+
+  const handleJumpToFinding = (finding: Finding) => {
+    setShowIssues(false);
+
+    if (finding.scope === 'package') {
+      setShowGlobalSettings(true);
+      return;
+    }
+
+    if (finding.formId) setActiveFormId(finding.formId);
+
+    if (finding.questionId) {
+      const form = surveyPackage.forms.find(f => f.id === finding.formId);
+      const question = form?.questions.find(q => q.id === finding.questionId);
+      if (question) {
+        setEditingQuestion(question);
+        setInitialEditorTab(tabForPart(finding.part));
+        setShowQuestionEditor(true);
+        return;
+      }
+    }
+
+    // A form-scoped finding with no specific question -- e.g. a manifest
+    // field or a linking-field problem.
+    setShowFormSettings(true);
   };
 
   const handleDuplicateQuestion = (question: SurveyQuestion) => {
@@ -357,6 +407,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
             variant={report.hasErrors ? "destructive" : "outline"}
             size="sm"
             title="Survey issues"
+            onClick={() => setShowIssues(true)}
           >
             {report.hasErrors ? (
               <AlertCircle className="h-4 w-4 mr-2" />
@@ -462,6 +513,7 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
                           warningCount={questionFindings.filter((f) => f.severity === 'warning').length}
                           onEdit={() => {
                             setEditingQuestion(question);
+                            setInitialEditorTab('basic');
                             setShowQuestionEditor(true);
                           }}
                           onDuplicate={() => handleDuplicateQuestion(question)}
@@ -527,6 +579,16 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         open={showQuestionEditor}
         onOpenChange={setShowQuestionEditor}
         onSave={handleSaveQuestion}
+        initialTab={initialEditorTab}
+      />
+
+      {/* Issues Panel */}
+      <IssuesPanel
+        open={showIssues}
+        onOpenChange={setShowIssues}
+        report={report}
+        pkg={surveyPackage}
+        onJump={handleJumpToFinding}
       />
 
       {/* Form Settings Sheet */}

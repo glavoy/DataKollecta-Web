@@ -34,6 +34,8 @@ interface QuestionEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (question: SurveyQuestion) => void;
+  /** Which tab to land on, e.g. when opened from an issues-panel finding. */
+  initialTab?: 'basic' | 'responses' | 'validation' | 'logic';
 }
 
 // Helper to determine what configuration options to show based on question type and field type
@@ -143,11 +145,18 @@ const parseWidth = (raw: string): { value: number | undefined; fixed: boolean | 
   return { value: n, fixed: fixed || undefined };
 };
 
-const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: QuestionEditorProps) => {
+const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, initialTab }: QuestionEditorProps) => {
   // Initialize synchronously from prop to avoid render flash/null issues
   const [editedQuestion, setEditedQuestion] = useState<SurveyQuestion | null>(() =>
     question ? JSON.parse(JSON.stringify(question)) : null
   );
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic');
+
+  // Land on the requested tab every time the sheet opens -- not just once on
+  // mount, since the same editor instance is reused across every question.
+  useEffect(() => {
+    if (open) setActiveTab(initialTab ?? 'basic');
+  }, [open, initialTab]);
 
   // Sync with prop when it changes
   useEffect(() => {
@@ -225,7 +234,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave }: 
         </SheetHeader>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
-          <Tabs defaultValue="basic" className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="basic">Basic</TabsTrigger>
               <TabsTrigger value="responses" disabled={!showMiddleTab}>
