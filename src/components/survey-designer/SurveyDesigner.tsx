@@ -578,8 +578,11 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            {dirty && (
+              <span className="text-xs text-muted-foreground">Unsaved changes</span>
+            )}
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => handleSaveToProject('draft')}
               disabled={!projectId || isSaving}
               size="sm"
