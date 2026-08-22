@@ -150,6 +150,11 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCou
                     Dynamic
                   </Badge>
                 )}
+                {question.optional && (
+                  <Badge variant="default" className="text-xs flex-shrink-0 bg-slate-500/80 hover:bg-slate-500">
+                    Optional
+                  </Badge>
+                )}
               </div>
 
               <p className="text-foreground break-words text-sm mb-2 line-clamp-3 leading-relaxed">

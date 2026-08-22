@@ -41,6 +41,12 @@ interface QuestionEditorProps {
   csvFiles?: CsvFile[];
 }
 
+// The conventional sentinels the app matches on (see specialAnswerUnconventional
+// in the validation engine) -- never meant to vary, so the designer toggles
+// these on/off rather than typing a value.
+const DONT_KNOW_VALUE = '-7';
+const REFUSE_VALUE = '-8';
+
 // Helper to determine what configuration options to show based on question type and field type
 const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
   const isTextInput = questionType === 'text';
@@ -393,7 +399,11 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                 </div>
               )}
 
-              {/* Don't Know / Refuse options - for applicable types */}
+              {/* Don't Know / Refuse options - for applicable types. Toggles
+                  rather than free-text: the value itself is never meant to
+                  vary (the app matches on the conventional -7/-8 sentinels;
+                  see specialAnswerUnconventional), so a text box just
+                  invited typos a designer had no reason to introduce. */}
               {config.showDontKnowRefuse && (
                 <>
                   <Separator className="my-4" />
@@ -401,21 +411,29 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                   <p className="text-xs text-muted-foreground mb-3">
                     Add standard response options for respondents who cannot or choose not to answer.
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs">Don't Know</Label>
-                      <Input
-                        value={editedQuestion.dontKnow ?? ''}
-                        onChange={(e) => update('dontKnow', e.target.value || undefined)}
-                        placeholder="-7"
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">Don't Know</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Adds a "Don't Know" response option.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={!!editedQuestion.dontKnow}
+                        onCheckedChange={(checked) => update('dontKnow', checked ? DONT_KNOW_VALUE : undefined)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs">Refuse to Answer</Label>
-                      <Input
-                        value={editedQuestion.refuse ?? ''}
-                        onChange={(e) => update('refuse', e.target.value || undefined)}
-                        placeholder="-8"
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">Refuse to Answer</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Adds a "Refuse to Answer" response option.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={!!editedQuestion.refuse}
+                        onCheckedChange={(checked) => update('refuse', checked ? REFUSE_VALUE : undefined)}
                       />
                     </div>
                   </div>
