@@ -35,8 +35,18 @@ import { CSS } from '@dnd-kit/utilities';
 interface ResponseOptionsEditorProps {
   responses: ResponseOption[];
   dynamicResponses?: DynamicResponseConfig;
+  /** The question's resolved mode (mirrors resolvedResponseMode from
+   *  lib/xml/question.ts) -- used only to pick the initially-open tab, so a
+   *  question already carrying both blocks (e.g. one saved by this bug
+   *  before it was fixed) opens on the tab that actually gets emitted,
+   *  rather than whichever block merely happens to be present. */
+  resolvedMode: 'static' | 'dynamic';
   onChange: (responses: ResponseOption[]) => void;
   onDynamicChange: (config: DynamicResponseConfig | undefined) => void;
+  /** Which block actually gets emitted -- must track the active tab, or the
+   *  emitter (which trusts this over the *presence* of dynamicResponses)
+   *  keeps exporting the old static list after switching to Dynamic. */
+  onResponseModeChange: (mode: 'static' | 'dynamic') => void;
   /** The survey's uploaded CSV files. When present, the CSV file and its
    *  display/value columns become pickers instead of free text. */
   csvFiles?: CsvFile[];
@@ -133,11 +143,13 @@ const ResponseRow = ({ response, index, onUpdate, onRemove }: ResponseRowProps) 
 const ResponseOptionsEditor = ({
   responses,
   dynamicResponses,
+  resolvedMode,
   onChange,
   onDynamicChange,
+  onResponseModeChange,
   csvFiles,
 }: ResponseOptionsEditorProps) => {
-  const [activeTab, setActiveTab] = useState<string>(dynamicResponses ? 'dynamic' : 'static');
+  const [activeTab, setActiveTab] = useState<string>(resolvedMode);
 
   const csvFilenames = useMemo(() => (csvFiles ?? []).map((f) => f.filename), [csvFiles]);
   const selectedCsvHeaders = useMemo(() => {
@@ -222,9 +234,11 @@ const ResponseOptionsEditor = ({
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    if (tab === 'dynamic' && !dynamicResponses) {
-      initDynamicConfig();
+    if (tab === 'dynamic') {
+      onResponseModeChange('dynamic');
+      if (!dynamicResponses) initDynamicConfig();
     } else if (tab === 'static') {
+      onResponseModeChange('static');
       onDynamicChange(undefined);
     }
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { SurveyQuestion, QuestionType, FieldType, CsvFile } from "@/types/survey";
+import { resolvedResponseMode } from "@/lib/xml/question";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -416,8 +417,10 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                 <ResponseOptionsEditor
                   responses={editedQuestion.responses || []}
                   dynamicResponses={editedQuestion.dynamicResponses}
+                  resolvedMode={resolvedResponseMode(editedQuestion)}
                   onChange={(responses) => update('responses', responses)}
                   onDynamicChange={(dynamic) => update('dynamicResponses', dynamic)}
+                  onResponseModeChange={(mode) => update('responseMode', mode)}
                   csvFiles={csvFiles}
                 />
               )}
