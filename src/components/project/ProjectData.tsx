@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import JSZip from "jszip";
 import { FormChangesView } from "@/components/FormChangesView";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
+import { buildCsv } from "@/lib/csv";
 
 interface FormWithCount {
   id: string;
@@ -186,63 +187,44 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
   const generateCSV = (submissions: any[]): string => {
     if (!submissions || submissions.length === 0) return '';
 
-    // Get all unique field names
+    // Get all unique field names, sorted for a deterministic column order
+    // rather than whichever submission happened to introduce a key first.
     const allFieldNames = new Set<string>();
     submissions.forEach(sub => {
       if (sub.data) {
         Object.keys(sub.data).forEach(key => allFieldNames.add(key));
       }
     });
+    const fieldNames = Array.from(allFieldNames).sort();
 
-    // Create header row
-    const headers = ['local_unique_id', 'surveyor_id', 'collected_at', 'submitted_at', ...Array.from(allFieldNames)];
+    const headers = ['local_unique_id', 'surveyor_id', 'collected_at', 'submitted_at', ...fieldNames];
+    const rows = submissions.map(sub => [
+      sub.local_unique_id,
+      sub.surveyor_id,
+      sub.collected_at,
+      sub.submitted_at,
+      ...fieldNames.map(fieldName => sub.data?.[fieldName]),
+    ]);
 
-    // Create data rows with proper CSV escaping
-    const rows = submissions.map(sub => {
-      const row: string[] = [
-        sub.local_unique_id || '',
-        sub.surveyor_id || '',
-        sub.collected_at || '',
-        sub.submitted_at || '',
-      ];
-      allFieldNames.forEach(fieldName => {
-        const value = sub.data?.[fieldName];
-        const stringValue = value === null || value === undefined ? '' : String(value);
-        const escaped = stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')
-          ? `"${stringValue.replace(/"/g, '""')}"`
-          : stringValue;
-        row.push(escaped);
-      });
-      return row.join(',');
-    }).join('\n');
-
-    return `${headers.join(',')}\n${rows}`;
+    return buildCsv(headers, rows);
   };
 
   const generateFormChangesCSV = (formchanges: any[]): string => {
     if (!formchanges || formchanges.length === 0) return '';
 
     const headers = ['formchanges_uuid', 'record_uuid', 'tablename', 'fieldname', 'oldvalue', 'newvalue', 'surveyor_id', 'changed_at'];
+    const rows = formchanges.map(fc => [
+      fc.formchanges_uuid,
+      fc.record_uuid,
+      fc.tablename,
+      fc.fieldname,
+      fc.oldvalue,
+      fc.newvalue,
+      fc.surveyor_id,
+      fc.changed_at,
+    ]);
 
-    const rows = formchanges.map(fc => {
-      return [
-        fc.formchanges_uuid || '',
-        fc.record_uuid || '',
-        fc.tablename || '',
-        fc.fieldname || '',
-        fc.oldvalue || '',
-        fc.newvalue || '',
-        fc.surveyor_id || '',
-        fc.changed_at || ''
-      ].map(val => {
-        const str = String(val);
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
-      }).join(',');
-    }).join('\n');
-
-    return `${headers.join(',')}\n${rows}`;
+    return buildCsv(headers, rows);
   };
 
   // Export single form to CSV
