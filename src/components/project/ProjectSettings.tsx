@@ -25,7 +25,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
+import { fetchAllRows } from "@/lib/supabasePaging";
 
 interface ProjectSettingsProps {
   project: {
@@ -108,24 +108,20 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
       // Delete in order: formchanges → submissions → crfs → survey_packages →
       // app_sessions → app_credentials → project_members → projects
 
-      // 1. Get all submissions to find their local_unique_ids for
-      // formchanges. Paged -- an unpaged select() here silently returns
-      // only the first 1000 rows, leaving formchanges past that point
-      // orphaned; with no ON DELETE CASCADE from projects, those orphans
-      // later make step 8 fail with everything else already deleted,
-      // wedging the project in an undeletable half-deleted state.
-      const submissions = await fetchAllRows<{ local_unique_id: string | null }>((from, to) =>
-        supabase.from('submissions').select('local_unique_id').eq('project_id', project.id).range(from, to),
-      );
-
-      if (submissions.length > 0) {
-        const recordUuids = submissions.map(s => s.local_unique_id).filter((id): id is string => id !== null);
-        // Chunked -- 1000+ UUIDs in one .in() exceeds a GET querystring's
-        // practical length ceiling and fails as a 414.
-        for (const chunk of chunkIds(recordUuids)) {
-          await supabase.from('formchanges').delete().in('record_uuid', chunk);
-        }
-      }
+      // 1. Delete formchanges directly by project_id -- it carries that
+      // column itself (NOT NULL), so there is no need to enumerate
+      // submissions' local_unique_ids first. That indirect approach used to
+      // be the only option and had two problems: an unpaged select()
+      // silently returned only the first 1000 submissions, orphaning
+      // formchanges past that point; and even fully paged, it can never
+      // find a formchanges row whose submission was already deleted by an
+      // earlier partial/failed run -- exactly the state a wedged project
+      // from before this fix would be in. Filtering by project_id catches
+      // those too. See migration 20260822055223 for the matching DB-level
+      // fix (formchanges.project_id now cascades from projects), which
+      // makes this belt-and-suspenders once deployed rather than load-
+      // bearing on its own.
+      await supabase.from('formchanges').delete().eq('project_id', project.id);
 
       // 2. Delete submissions
       await supabase.from('submissions').delete().eq('project_id', project.id);
