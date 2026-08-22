@@ -202,7 +202,9 @@ export function emitQuestion(q: SurveyQuestion): XmlElement {
 
   children.push(textEl('dont_know', q.dontKnow));
   children.push(textEl('refuse', q.refuse));
-  children.push(textEl('na', q.na));
+  // Only ever written when true -- unlike dont_know/refuse, this carries no
+  // special-response value, its presence alone is the flag.
+  children.push(textEl('optional', q.optional ? 1 : undefined));
 
   return el(
     'question',
@@ -451,8 +453,8 @@ export function parseQuestion(raw: Record<string, unknown>, index: number): Surv
   if (dontKnow !== undefined) q.dontKnow = dontKnow;
   const refuse = textOf(asArray(raw.refuse)[0]);
   if (refuse !== undefined) q.refuse = refuse;
-  const na = textOf(asArray(raw.na)[0]);
-  if (na !== undefined) q.na = na;
+  // Presence is the flag -- see the emit side.
+  if (textOf(asArray(raw.optional)[0]) !== undefined) q.optional = true;
 
   return q;
 }

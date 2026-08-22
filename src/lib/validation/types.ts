@@ -26,6 +26,7 @@ export const RULE = {
 
   // shape
   maskOnNonText: 'question.mask.nonText',
+  optionalOnNonText: 'question.optional.nonText',
   maxCharsRequired: 'question.maxCharacters.required',
   maxCharsHourmin: 'question.maxCharacters.hourmin',
   hourminHasRange: 'question.range.hourmin',
@@ -97,6 +98,7 @@ export type FindingPart =
   | 'text'
   | 'maxCharacters'
   | 'mask'
+  | 'optional'
   | 'numericCheck'
   | 'dateRange'
   | 'logicCheck'

@@ -77,6 +77,7 @@ describe('per-question identity, shape, responses, calculation', () => {
             type: 'date',
             fieldtype: 'date',
             mask: 'X',
+            optional: true, // optionalOnNonText
             dateRange: { minDate: '0', maxDate: '0' },
           }),
         ]),

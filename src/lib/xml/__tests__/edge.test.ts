@@ -251,12 +251,21 @@ describe('skips and special values', () => {
     expect(byName.get('village')?.postskip?.[0]).toMatchObject({ condition: 'contains' });
   });
 
-  it('round-trips dont_know, refuse and na', () => {
+  it('round-trips dont_know and refuse', () => {
     expect(byName.get('zero_option')).toMatchObject({
       dontKnow: '-7',
       refuse: '-8',
-      na: '-6',
     });
+  });
+
+  it('round-trips optional', () => {
+    expect(byName.get('tricky_text')?.optional).toBe(true);
+    const el = emittedByName.get('tricky_text')!.children.find((c) => c.name === 'optional');
+    expect(el?.text).toBe('1');
+  });
+
+  it('leaves optional unset (not false) when absent', () => {
+    expect(byName.get('zero_floor')?.optional).toBeUndefined();
   });
 });
 

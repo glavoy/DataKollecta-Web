@@ -201,7 +201,7 @@ describe('special answers', () => {
   });
 
   it('accepts the conventional sentinels', () => {
-    const findings = shapeFindings(formOf([q({ dontKnow: '-7', refuse: '-8', na: '-6' })]));
+    const findings = shapeFindings(formOf([q({ dontKnow: '-7', refuse: '-8' })]));
     expect(findings).toEqual([]);
   });
 
@@ -232,8 +232,8 @@ describe('special answers', () => {
   });
 
   it('does not port the Excel True/False rule -- the web model stores the emitted sentinel, not the source column value', () => {
-    // -7/-8/-6 are the values xml_generator.py actually WRITES; the web
-    // model's dontKnow/refuse/na fields hold that, never 'True'/'False'.
+    // -7/-8 are the values xml_generator.py actually WRITES; the web
+    // model's dontKnow/refuse fields hold that, never 'True'/'False'.
     const findings = shapeFindings(formOf([q({ dontKnow: '-7' })]));
     expect(findings).toEqual([]);
   });

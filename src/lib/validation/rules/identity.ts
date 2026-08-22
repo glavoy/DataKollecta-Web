@@ -175,6 +175,17 @@ function textAndMaskFindings(q: SurveyQuestion, index: number): Finding[] {
     });
   }
 
+  if (q.optional && q.type !== 'text') {
+    findings.push({
+      ...base,
+      part: 'optional',
+      ruleId: RULE.optionalOnNonText,
+      severity: 'error',
+      message: `Optional is set, but the question type is '${q.type}', not Text.`,
+      hint: "Choice questions already have Don't Know/Refuse for an explicit non-answer.",
+    });
+  }
+
   return findings;
 }
 

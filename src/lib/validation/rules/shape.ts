@@ -215,18 +215,22 @@ function dateRangeFindings(q: SurveyQuestion, index: number): Finding[] {
   return findings;
 }
 
-const CONVENTIONAL_SPECIAL_VALUES: Record<'dontKnow' | 'refuse' | 'na', string> = {
+const CONVENTIONAL_SPECIAL_VALUES: Record<'dontKnow' | 'refuse', string> = {
   dontKnow: '-7',
   refuse: '-8',
-  na: '-6',
 };
 
 /**
- * `dontKnow`/`refuse`/`na` collide with a static response option value, or
- * simply aren't one of the app's conventional sentinels. Both warning-only:
- * neither breaks anything mechanically, but a collision means the special
- * answer is indistinguishable from a real one, and an unconventional value
- * is very likely a typo rather than a deliberate choice.
+ * `dontKnow`/`refuse` collide with a static response option value, or simply
+ * aren't one of the app's conventional sentinels. Both warning-only: neither
+ * breaks anything mechanically, but a collision means the special answer is
+ * indistinguishable from a real one, and an unconventional value is very
+ * likely a typo rather than a deliberate choice.
+ *
+ * `optional` used to be `na` here too, but it's a boolean flag, not a
+ * special-response value -- there's no sentinel for it to collide with or
+ * conform to, so it's checked separately (`optionalOnNonText`, in this same
+ * file).
  */
 function specialAnswerFindings(q: SurveyQuestion, index: number): Finding[] {
   const findings: Finding[] = [];
@@ -240,7 +244,7 @@ function specialAnswerFindings(q: SurveyQuestion, index: number): Finding[] {
     part: 'specialAnswers' as const,
   };
 
-  (['dontKnow', 'refuse', 'na'] as const).forEach((key) => {
+  (['dontKnow', 'refuse'] as const).forEach((key) => {
     const value = q[key];
     if (!value) return;
 

@@ -60,7 +60,14 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
     // second-guesses the type model, so "accepted" isn't "has an effect".
     showMaxCharacters: isTextInput && needsMaxChars,
     showMask: isTextInput,
-    showDontKnowRefuseNa: !isInformation && !isCalculated,
+    showDontKnowRefuse: !isInformation && !isCalculated,
+    // The app's _isAnswered checks q.optional unconditionally, with no type
+    // gate of its own (survey_screen.dart) -- same shape as maxCharacters/
+    // mask above: restricted here at authoring time because it's only
+    // meaningful for free text, not because the app would reject it
+    // elsewhere. A choice question already has DontKnow/Refuse for an
+    // explicit non-answer.
+    showOptional: isTextInput,
 
     // Responses tab
     showResponses: isSelectType,
@@ -228,11 +235,15 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
       if (newType !== 'calculated') {
         updated.calculation = undefined;
       }
+      // Optional only applies to text -- same reasoning as showOptional in
+      // getFieldConfig above.
+      if (newType !== 'text') {
+        updated.optional = undefined;
+      }
       // Clear validation options that don't apply
       if (newType === 'information') {
         updated.dontKnow = undefined;
         updated.refuse = undefined;
-        updated.na = undefined;
         updated.numericCheck = undefined;
         updated.dateRange = undefined;
         updated.logicCheck = undefined;
@@ -383,7 +394,7 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
               )}
 
               {/* Don't Know / Refuse options - for applicable types */}
-              {config.showDontKnowRefuseNa && (
+              {config.showDontKnowRefuse && (
                 <>
                   <Separator className="my-4" />
                   <Label className="text-sm font-medium">Special Response Values</Label>
@@ -407,6 +418,24 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                         placeholder="-8"
                       />
                     </div>
+                  </div>
+                </>
+              )}
+
+              {config.showOptional && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Optional</Label>
+                      <p className="text-xs text-muted-foreground">
+                        The respondent may leave this blank -- Next stays enabled with no answer.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={editedQuestion.optional ?? false}
+                      onCheckedChange={(checked) => update('optional', checked || undefined)}
+                    />
                   </div>
                 </>
               )}

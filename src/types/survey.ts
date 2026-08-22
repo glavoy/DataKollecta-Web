@@ -244,7 +244,12 @@ export interface SurveyQuestion {
   calculation?: CalculationConfig;
   dontKnow?: string;
   refuse?: string;
-  na?: string;
+  /**
+   * `text` only. May be left blank -- the Next button stays enabled with no
+   * answer. Replaces the app's old hardcoded 'comments' fieldname
+   * special-case, which applied regardless of QuestionType.
+   */
+  optional?: boolean;
 }
 
 // Manifest (CRFS) Types

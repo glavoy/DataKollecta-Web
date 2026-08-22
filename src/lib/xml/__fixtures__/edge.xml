@@ -15,6 +15,7 @@
 		<maxCharacters>=3</maxCharacters>
 		<numeric_range>=4</numeric_range>
 		<mask value="R21[UB]-[0-9][0-9]" />
+		<optional>1</optional>
 	</question>
 
 	<question type = 'text' fieldname = 'zero_floor' fieldtype = 'text_integer'>
@@ -33,7 +34,6 @@
 		</responses>
 		<dont_know>-7</dont_know>
 		<refuse>-8</refuse>
-		<na>-6</na>
 	</question>
 
 	<question type = 'automatic' fieldname = 'calc_constant' fieldtype = 'text'>

@@ -454,7 +454,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
       case 'postskip':
         return 'logic';
       default:
-        return 'basic'; // identity, text, maxCharacters, mask, specialAnswers
+        return 'basic'; // identity, text, maxCharacters, mask, optional, specialAnswers
     }
   };
 

@@ -127,6 +127,25 @@ describe('mask placement', () => {
   });
 });
 
+describe('optional placement', () => {
+  it('allows optional on a text question', () => {
+    const findings = identityFindings(formOf([q('a', { optional: true })]));
+    expect(findings.filter((f) => f.ruleId === RULE.optionalOnNonText)).toEqual([]);
+  });
+
+  it('rejects optional on a non-text question', () => {
+    const findings = identityFindings(
+      formOf([q('a', { type: 'radio', fieldtype: 'integer', optional: true })]),
+    );
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: RULE.optionalOnNonText }));
+  });
+
+  it('is silent when optional is simply unset', () => {
+    const findings = identityFindings(formOf([q('a', { type: 'radio', fieldtype: 'integer' })]));
+    expect(findings.filter((f) => f.ruleId === RULE.optionalOnNonText)).toEqual([]);
+  });
+});
+
 describe('formId/tablename are attached', () => {
   it('stamps every finding with the form it came from', () => {
     const findings = identityFindings(formOf([q('')]));
