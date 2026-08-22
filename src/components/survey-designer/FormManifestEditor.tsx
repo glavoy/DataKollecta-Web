@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { SurveyForm, IdConfig, SurveyQuestion } from "@/types/survey";
+import { GENERATED_END_TEXT } from "@/lib/xml/systemFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -505,10 +507,34 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
               </AccordionContent>
             </AccordionItem>
 
-            {/* 4. Auto-Repeat Logic - only for child forms */}
+            {/* 4. End of Survey Screen -- every form's XML gets its own
+                end-of-questions screen (withSystemFields is called per
+                form, not once per survey), so this is per-form, not
+                global. Left blank, the app shows GENERATED_END_TEXT and
+                translates it for a French build; typing here opts out of
+                that translation for this form's screen only. */}
+            <AccordionItem value="endScreen">
+              <AccordionTrigger>4. End of Survey Screen</AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <Label>Message</Label>
+                    <InfoTooltip text="Shown after the last question, before Finish. Leave blank to use the app's own wording, which is translated automatically for a French build; custom text here is always shown as-is." />
+                  </div>
+                  <Textarea
+                    value={editedForm.endOfQuestionsText || ''}
+                    onChange={(e) => update('endOfQuestionsText', e.target.value || undefined)}
+                    placeholder={GENERATED_END_TEXT}
+                    rows={3}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* 5. Auto-Repeat Logic - only for child forms */}
             {isChildForm && (
               <AccordionItem value="repeat">
-                <AccordionTrigger>4. Auto-Repeat Logic</AccordionTrigger>
+                <AccordionTrigger>5. Auto-Repeat Logic</AccordionTrigger>
                 <AccordionContent className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center">
