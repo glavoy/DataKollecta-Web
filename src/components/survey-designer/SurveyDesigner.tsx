@@ -471,65 +471,39 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
 
   return (
     <div className="h-full flex flex-col w-full max-w-full overflow-hidden">
-      {/* Package Header */}
-      <div className="flex items-center justify-between mb-6 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          {projectSlug && (
-            <Link to={`/app/projects/${projectSlug}?tab=surveys`}>
-              <Button variant="ghost" size="icon" title="Back to Project">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-          )}
-          <div
-            className="text-lg font-semibold cursor-pointer hover:underline"
-            onClick={() => setShowGlobalSettings(true)}
-          >
-            {surveyPackage.name || 'Untitled Survey'}
-          </div>
-          {surveyPackage.surveyId && (
-            <Badge variant="outline">{surveyPackage.surveyId}</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowGlobalSettings(true)}
-            size="sm"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Survey Settings
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => handleSaveToProject('draft')}
-            disabled={!projectId || isSaving}
-            size="sm"
-          >
-            Save Draft
-          </Button>
-          <Button
-            variant="default"
-            onClick={() => handleSaveToProject('active')}
-            disabled={!projectId || isSaving}
-            size="sm"
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <CloudUpload className="h-4 w-4 mr-2" />
+      {/* Package Header -- identity row, then a divider, then an actions
+          row. A single crowded row used to wrap the title across several
+          lines at normal widths and shove every button sideways; splitting
+          identity from actions gives the title room to just truncate. */}
+      <div className="mb-4 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {projectSlug && (
+              <Link to={`/app/projects/${projectSlug}?tab=surveys`} className="flex-shrink-0">
+                <Button variant="ghost" size="icon" title="Back to Project">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </Link>
             )}
-            Publish
-          </Button>
-          <Button variant="outline" onClick={() => setShowXmlPreview(true)}>
-            <FileCode className="h-4 w-4 mr-2" />
-            Preview & Export
-          </Button>
+            <div className="min-w-0">
+              <div
+                className="text-lg font-semibold cursor-pointer hover:underline truncate"
+                onClick={() => setShowGlobalSettings(true)}
+                title={surveyPackage.name || 'Untitled Survey'}
+              >
+                {surveyPackage.name || 'Untitled Survey'}
+              </div>
+              {surveyPackage.surveyId && (
+                <div className="text-xs text-muted-foreground truncate">{surveyPackage.surveyId}</div>
+              )}
+            </div>
+          </div>
           <Button
             variant={report.hasErrors ? "destructive" : "outline"}
             size="sm"
             title="Survey issues"
             onClick={() => setShowIssues(true)}
+            className="flex-shrink-0"
           >
             {report.hasErrors ? (
               <AlertCircle className="h-4 w-4 mr-2" />
@@ -538,6 +512,42 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             )}
             {report.errorCount} error{report.errorCount === 1 ? '' : 's'} · {report.warningCount} warning{report.warningCount === 1 ? '' : 's'}
           </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-border">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowGlobalSettings(true)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Survey Settings
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowXmlPreview(true)}>
+              <FileCode className="h-4 w-4 mr-2" />
+              Preview & Export
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => handleSaveToProject('draft')}
+              disabled={!projectId || isSaving}
+              size="sm"
+            >
+              Save Draft
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => handleSaveToProject('active')}
+              disabled={!projectId || isSaving}
+              size="sm"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CloudUpload className="h-4 w-4 mr-2" />
+              )}
+              Publish
+            </Button>
+          </div>
         </div>
       </div>
 
