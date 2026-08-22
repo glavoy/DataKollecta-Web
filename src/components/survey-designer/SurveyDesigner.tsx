@@ -60,6 +60,7 @@ import GlobalSettingsEditor from "./GlobalSettingsEditor";
 import IssuesPanel from "./IssuesPanel";
 import { surveyService } from "@/services/surveyService";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { validatePackage, type Finding, type FindingPart } from "@/lib/validation";
 
 // Get default field type based on question type
@@ -174,6 +175,23 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         title: "Cannot save",
         description: "Missing project or user context.",
         variant: "destructive",
+      });
+      return;
+    }
+
+    // Save Draft never blocks -- a survey mid-edit is allowed to be broken.
+    // Publish does: a broken survey reaching a field device is the one
+    // outcome this whole engine exists to prevent.
+    if (status === 'active' && report.hasErrors) {
+      toast({
+        title: "Cannot publish",
+        description: `${report.errorCount} error${report.errorCount === 1 ? '' : 's'} must be fixed first.`,
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Review issues" onClick={() => setShowIssues(true)}>
+            Review
+          </ToastAction>
+        ),
       });
       return;
     }
@@ -616,6 +634,11 @@ const SurveyDesigner = ({ initialPackage, onSave, projectId, projectSlug, userId
         currentForm={activeForm || null}
         open={showXmlPreview}
         onOpenChange={setShowXmlPreview}
+        report={report}
+        onReviewIssues={() => {
+          setShowXmlPreview(false);
+          setShowIssues(true);
+        }}
       />
 
       {/* Delete Form Confirmation */}

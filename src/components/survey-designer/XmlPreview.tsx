@@ -10,17 +10,20 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateFormXml, generateManifestGistx, downloadFile, downloadSurveyZip } from "@/lib/xmlGenerator";
-import { Copy, Download, FileArchive } from "lucide-react";
+import { Copy, Download, FileArchive, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import type { ValidationReport } from "@/lib/validation";
 
 interface XmlPreviewProps {
   surveyPackage: SurveyPackage;
   currentForm: SurveyForm | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  report: ValidationReport;
+  onReviewIssues: () => void;
 }
 
-const XmlPreview = ({ surveyPackage, currentForm, open, onOpenChange }: XmlPreviewProps) => {
+const XmlPreview = ({ surveyPackage, currentForm, open, onOpenChange, report, onReviewIssues }: XmlPreviewProps) => {
   const formXml = currentForm ? generateFormXml(currentForm) : '';
   const manifestJson = generateManifestGistx(surveyPackage);
 
@@ -42,6 +45,17 @@ const XmlPreview = ({ surveyPackage, currentForm, open, onOpenChange }: XmlPrevi
   };
 
   const handleDownloadZip = async () => {
+    // Blocked here, not on the per-form XML/manifest downloads above --
+    // those are how an author inspects the XML to understand an error they
+    // were just shown, and blocking them would be actively hostile to that.
+    if (report.hasErrors) {
+      toast.error(
+        `${report.errorCount} error${report.errorCount === 1 ? '' : 's'} must be fixed before exporting.`,
+        { action: { label: 'Review', onClick: onReviewIssues } },
+      );
+      return;
+    }
+
     try {
       await downloadSurveyZip(surveyPackage);
       toast.success('Survey package downloaded');
@@ -120,7 +134,13 @@ const XmlPreview = ({ surveyPackage, currentForm, open, onOpenChange }: XmlPrevi
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 items-center">
+          {report.hasErrors && (
+            <span className="text-sm text-destructive flex items-center gap-1.5 mr-auto">
+              <AlertCircle className="h-4 w-4" />
+              {report.errorCount} error{report.errorCount === 1 ? '' : 's'} must be fixed to export
+            </span>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
