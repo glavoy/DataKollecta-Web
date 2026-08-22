@@ -53,6 +53,13 @@ import {
 } from '@dnd-kit/sortable';
 import QuestionTypeSelector from "./QuestionTypeSelector";
 import QuestionCard from "./QuestionCard";
+import SystemFieldRow from "./SystemFieldRow";
+import {
+  LEADING_SYSTEM_FIELDS,
+  TRAILING_SYSTEM_FIELDS,
+  END_OF_QUESTIONS_FIELDNAME,
+  GENERATED_END_TEXT,
+} from "@/lib/xml/systemFields";
 import QuestionEditor from "./QuestionEditor";
 import FormManifestEditor from "./FormManifestEditor";
 import XmlPreview from "./XmlPreview";
@@ -638,6 +645,19 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             {/* Questions List */}
             <div className="flex-1 w-full overflow-y-auto min-h-0">
               <div className="space-y-3 pr-4 w-full pb-4">
+                {/* Leading system fields -- never part of form.questions, so
+                    they render outside the sortable list entirely: they
+                    can't be dragged and can't be a drop target, which is
+                    what actually keeps a real question from landing above
+                    startdate (a disabled sortable item would still be a
+                    droppable collision target). */}
+                <p className="text-xs text-muted-foreground px-1">
+                  Added automatically when the survey is generated
+                </p>
+                {LEADING_SYSTEM_FIELDS.map((f) => (
+                  <SystemFieldRow key={f.fieldname} fieldname={f.fieldname} caption="Set automatically" />
+                ))}
+
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -668,6 +688,20 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                     })}
                   </SortableContext>
                 </DndContext>
+
+                {/* Trailing system fields + the end-of-survey screen -- same
+                    reasoning as the leading block, mirrored: a new question
+                    (handleAddQuestion appends to form.questions) lands above
+                    this group automatically, with no insert-position logic
+                    needed. */}
+                {TRAILING_SYSTEM_FIELDS.map((f) => (
+                  <SystemFieldRow key={f.fieldname} fieldname={f.fieldname} caption="Set automatically" />
+                ))}
+                <SystemFieldRow
+                  key={END_OF_QUESTIONS_FIELDNAME}
+                  fieldname={END_OF_QUESTIONS_FIELDNAME}
+                  caption={form.endOfQuestionsText?.trim() || GENERATED_END_TEXT}
+                />
 
                 {form.questions.length === 0 && !showAddQuestion && (
                   <Card className="bg-muted/30 border-dashed border-2">
