@@ -245,13 +245,16 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
           </div>
         )}
 
-        <fieldset disabled={readOnly} className="contents">
         <ScrollArea className="flex-1 -mx-6 px-6">
           <Accordion type="multiple" defaultValue={["basic", "hierarchy"]} className="w-full">
             {/* 1. Basic Identification */}
             <AccordionItem value="basic">
               <AccordionTrigger>1. Basic Identification</AccordionTrigger>
-              <AccordionContent className="space-y-4">
+              <AccordionContent>
+              {/* Trigger above stays outside the fieldset -- only the fields
+                  within should be inert when locked, never the ability to
+                  expand a section and inspect it. */}
+              <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 min-w-0">
                 <div className="space-y-2">
                   <div className="flex items-center">
                     <Label>Display Name</Label>
@@ -283,13 +286,18 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                   selectedFields={parseFieldList(editedForm.displayFields)}
                   onChange={(fields) => update('displayFields', formatFieldList(fields))}
                 />
+              </fieldset>
               </AccordionContent>
             </AccordionItem>
 
             {/* 2. Hierarchy & Navigation */}
             <AccordionItem value="hierarchy">
               <AccordionTrigger>2. Hierarchy & Navigation</AccordionTrigger>
-              <AccordionContent className="space-y-4">
+              <AccordionContent>
+              {/* Trigger above stays outside the fieldset -- only the fields
+                  within should be inert when locked, never the ability to
+                  expand a section and inspect it. */}
+              <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 min-w-0">
                 <div className="space-y-2">
                   <div className="flex items-center">
                     <Label>Parent Table</Label>
@@ -369,13 +377,18 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                     placeholder="e.g., enrolled=1"
                   />
                 </div>
+              </fieldset>
               </AccordionContent>
             </AccordionItem>
 
             {/* 3. ID Generation */}
             <AccordionItem value="idconfig">
               <AccordionTrigger>3. ID Generation</AccordionTrigger>
-              <AccordionContent className="space-y-4">
+              <AccordionContent>
+              {/* Trigger above stays outside the fieldset -- only the fields
+                  within should be inert when locked, never the ability to
+                  expand a section and inspect it. */}
+              <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 min-w-0">
                 <FieldSelector
                   label="Primary Key"
                   tooltip="Field(s) that uniquely identify a record. For child forms, typically includes the linking field plus an increment field (e.g., hhid,linenum)."
@@ -515,6 +528,7 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                     </Select>
                   </div>
                 )}
+              </fieldset>
               </AccordionContent>
             </AccordionItem>
 
@@ -526,7 +540,11 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                 that translation for this form's screen only. */}
             <AccordionItem value="endScreen">
               <AccordionTrigger>4. End of Survey Screen</AccordionTrigger>
-              <AccordionContent className="space-y-4">
+              <AccordionContent>
+              {/* Trigger above stays outside the fieldset -- only the fields
+                  within should be inert when locked, never the ability to
+                  expand a section and inspect it. */}
+              <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 min-w-0">
                 <div className="space-y-2">
                   <div className="flex items-center">
                     <Label>Message</Label>
@@ -539,6 +557,7 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                     rows={3}
                   />
                 </div>
+              </fieldset>
               </AccordionContent>
             </AccordionItem>
 
@@ -546,7 +565,11 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
             {isChildForm && (
               <AccordionItem value="repeat">
                 <AccordionTrigger>5. Auto-Repeat Logic</AccordionTrigger>
-                <AccordionContent className="space-y-4">
+                <AccordionContent>
+              {/* Trigger above stays outside the fieldset -- only the fields
+                  within should be inert when locked, never the ability to
+                  expand a section and inspect it. */}
+              <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 min-w-0">
                   <div className="space-y-2">
                     <div className="flex items-center">
                       <Label>Repeat Count Field</Label>
@@ -648,12 +671,12 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
                       </SelectContent>
                     </Select>
                   </div>
-                </AccordionContent>
+                </fieldset>
+              </AccordionContent>
               </AccordionItem>
             )}
           </Accordion>
         </ScrollArea>
-        </fieldset>
 
         <SheetFooter className="mt-4">
           {readOnly ? (

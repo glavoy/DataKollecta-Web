@@ -287,7 +287,6 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
           </div>
         )}
 
-        <fieldset disabled={readOnly} className="contents">
         <ScrollArea className="flex-1 -mx-6 px-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
@@ -298,6 +297,11 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
               <TabsTrigger value="validation">Validation</TabsTrigger>
               <TabsTrigger value="logic">Skip Logic</TabsTrigger>
             </TabsList>
+
+            {/* Tab navigation above stays outside the fieldset -- only the
+                fields within each panel should be inert when locked, never
+                the ability to switch tabs and inspect them. */}
+            <fieldset disabled={readOnly} className="contents">
 
             <TabsContent value="basic" className="space-y-4 mt-4">
               {/* Question Type */}
@@ -521,9 +525,9 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
                 onChange={(rules) => update('postskip', rules)}
               />
             </TabsContent>
+            </fieldset>
           </Tabs>
         </ScrollArea>
-        </fieldset>
 
         <SheetFooter className="mt-4">
           {readOnly ? (
