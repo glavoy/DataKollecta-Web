@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useRef } from "react";
-import { Trash2, Upload, FileSpreadsheet, ChevronUp, ChevronDown, Info, FileText } from "lucide-react";
+import { Trash2, Upload, FileSpreadsheet, ChevronUp, ChevronDown, Info, FileText, Lock } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -34,6 +34,9 @@ interface GlobalSettingsEditorProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (pkg: SurveyPackage) => void;
+    /** True for a locked (deployed/complete) survey -- every field renders disabled and the
+     *  footer offers only Close, no Save. */
+    readOnly?: boolean;
 }
 
 // Info tooltip component
@@ -50,7 +53,7 @@ const InfoTooltip = ({ text }: { text: string }) => (
     </TooltipProvider>
 );
 
-const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave }: GlobalSettingsEditorProps) => {
+const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readOnly }: GlobalSettingsEditorProps) => {
     const [editedPackage, setEditedPackage] = useState<SurveyPackage>({ ...surveyPackage });
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -161,6 +164,15 @@ const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave }: Glo
                         Configure global properties for the survey package.
                     </SheetDescription>
                 </SheetHeader>
+
+                {readOnly && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2 mb-1">
+                        <Lock className="h-4 w-4 flex-shrink-0" />
+                        <span>This survey is locked and can no longer be edited. Duplicate it to make changes.</span>
+                    </div>
+                )}
+
+                <fieldset disabled={readOnly} className="contents">
 
                 <ScrollArea className="flex-1 -mx-6 px-6">
                     <div className="space-y-6 py-6">
@@ -347,14 +359,23 @@ const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave }: Glo
                         </div>
                     </div>
                 </ScrollArea>
+                </fieldset>
 
                 <SheetFooter className="mt-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSave}>
-                        Save Settings
-                    </Button>
+                    {readOnly ? (
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                            Close
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={() => onOpenChange(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSave}>
+                                Save Settings
+                            </Button>
+                        </>
+                    )}
                 </SheetFooter>
             </SheetContent>
         </Sheet>

@@ -742,9 +742,11 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
               );
             })}
           </TabsList>
-          <Button variant="outline" size="sm" onClick={addForm}>
-            <Plus className="h-4 w-4" />
-          </Button>
+          {!locked && (
+            <Button variant="outline" size="sm" onClick={addForm}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {surveyPackage.forms.map((form) => (
@@ -763,29 +765,31 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowFormSettings(true)}>
                       <Settings className="h-4 w-4 mr-1" />
-                      Settings
+                      {locked ? 'View Settings' : 'Settings'}
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => duplicateForm(form)}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Duplicate Form
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setDeleteFormId(form.id)}
-                          className="text-destructive"
-                          disabled={surveyPackage.forms.length <= 1}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Form
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!locked && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => duplicateForm(form)}>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Duplicate Form
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setDeleteFormId(form.id)}
+                            className="text-destructive"
+                            disabled={surveyPackage.forms.length <= 1}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Form
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -825,6 +829,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                           index={index}
                           errorCount={questionFindings.filter((f) => f.severity === 'error').length}
                           warningCount={questionFindings.filter((f) => f.severity === 'warning').length}
+                          locked={locked}
                           onEdit={() => {
                             setEditingQuestion(question);
                             setInitialEditorTab('basic');
@@ -856,18 +861,21 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                   <Card className="bg-muted/30 border-dashed border-2">
                     <CardContent className="py-8 text-center">
                       <p className="text-muted-foreground mb-4">
-                        No questions yet. Add your first question to get started.
+                        {locked ? 'No questions in this form.' : 'No questions yet. Add your first question to get started.'}
                       </p>
-                      <Button onClick={() => setShowAddQuestion(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Question
-                      </Button>
+                      {!locked && (
+                        <Button onClick={() => setShowAddQuestion(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Question
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Add Question Section */}
-                {showAddQuestion ? (
+                {/* Add Question Section -- never reachable when locked, since
+                    updatePackage() would just bounce it with a toast anyway. */}
+                {!locked && (showAddQuestion ? (
                   <Card className="bg-card border-border">
                     <CardHeader>
                       <CardTitle className="text-base">Select Question Type</CardTitle>
@@ -893,7 +901,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                     <Plus className="h-4 w-4 mr-2" />
                     Add Question
                   </Button>
-                )}
+                ))}
               </div>
             </div>
           </TabsContent>
@@ -909,6 +917,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         onSave={handleSaveQuestion}
         initialTab={initialEditorTab}
         csvFiles={surveyPackage.csvFiles}
+        readOnly={locked}
       />
 
       {/* Issues Panel */}
@@ -928,6 +937,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
           open={showFormSettings}
           onOpenChange={setShowFormSettings}
           onSave={(updatedForm) => updateForm(activeFormId, updatedForm)}
+          readOnly={locked}
         />
       )}
 
@@ -937,6 +947,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         open={showGlobalSettings}
         onOpenChange={setShowGlobalSettings}
         onSave={(pkg) => updatePackage(pkg)}
+        readOnly={locked}
       />
 
       {/* XML Preview Dialog */}

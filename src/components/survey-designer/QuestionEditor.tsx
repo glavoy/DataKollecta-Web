@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Lock } from "lucide-react";
 import ResponseOptionsEditor from "./ResponseOptionsEditor";
 import SkipLogicEditor from "./SkipLogicEditor";
 import ValidationEditor from "./ValidationEditor";
@@ -39,6 +40,9 @@ interface QuestionEditorProps {
   initialTab?: 'basic' | 'responses' | 'validation' | 'logic';
   /** The survey's uploaded CSV files, for the dynamic-response file/column pickers. */
   csvFiles?: CsvFile[];
+  /** True for a locked (deployed/complete) survey -- every field renders disabled and the
+   *  footer offers only Close, no Save. Lets a locked question still be inspected. */
+  readOnly?: boolean;
 }
 
 // The conventional sentinels the app matches on (see specialAnswerUnconventional
@@ -170,7 +174,7 @@ const parseWidth = (raw: string): { value: number | undefined; fixed: boolean | 
   return { value: n, fixed: fixed || undefined };
 };
 
-const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, initialTab, csvFiles }: QuestionEditorProps) => {
+const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, initialTab, csvFiles, readOnly }: QuestionEditorProps) => {
   // Initialize synchronously from prop to avoid render flash/null issues
   const [editedQuestion, setEditedQuestion] = useState<SurveyQuestion | null>(() =>
     question ? JSON.parse(JSON.stringify(question)) : null
@@ -276,6 +280,14 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
           </SheetDescription>
         </SheetHeader>
 
+        {readOnly && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2 mb-1">
+            <Lock className="h-4 w-4 flex-shrink-0" />
+            <span>This survey is locked and can no longer be edited. Duplicate it to make changes.</span>
+          </div>
+        )}
+
+        <fieldset disabled={readOnly} className="contents">
         <ScrollArea className="flex-1 -mx-6 px-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
@@ -511,14 +523,23 @@ const QuestionEditor = ({ question, allQuestions, open, onOpenChange, onSave, in
             </TabsContent>
           </Tabs>
         </ScrollArea>
+        </fieldset>
 
         <SheetFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>
-            Save Question
-          </Button>
+          {readOnly ? (
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                Save Question
+              </Button>
+            </>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>

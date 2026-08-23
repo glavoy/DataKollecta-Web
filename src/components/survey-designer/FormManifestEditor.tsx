@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Info, X } from "lucide-react";
+import { Plus, Trash2, Info, X, Lock } from "lucide-react";
 
 interface FormManifestEditorProps {
   form: SurveyForm;
@@ -43,6 +43,9 @@ interface FormManifestEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (form: SurveyForm) => void;
+  /** True for a locked (deployed/complete) survey -- every field renders disabled and the
+   *  footer offers only Close, no Save. */
+  readOnly?: boolean;
 }
 
 // Info tooltip component
@@ -140,7 +143,7 @@ const FieldSelector = ({
   );
 };
 
-const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: FormManifestEditorProps) => {
+const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOnly }: FormManifestEditorProps) => {
   const [editedForm, setEditedForm] = useState<SurveyForm>({ ...form });
   // Store idconfig separately to preserve it when toggling
   const [savedIdConfig, setSavedIdConfig] = useState<IdConfig | null>(form.idconfig || null);
@@ -235,6 +238,14 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
           </SheetDescription>
         </SheetHeader>
 
+        {readOnly && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2 mb-1">
+            <Lock className="h-4 w-4 flex-shrink-0" />
+            <span>This survey is locked and can no longer be edited. Duplicate it to make changes.</span>
+          </div>
+        )}
+
+        <fieldset disabled={readOnly} className="contents">
         <ScrollArea className="flex-1 -mx-6 px-6">
           <Accordion type="multiple" defaultValue={["basic", "hierarchy"]} className="w-full">
             {/* 1. Basic Identification */}
@@ -642,14 +653,23 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave }: Form
             )}
           </Accordion>
         </ScrollArea>
+        </fieldset>
 
         <SheetFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>
-            Save Configuration
-          </Button>
+          {readOnly ? (
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                Save Configuration
+              </Button>
+            </>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>

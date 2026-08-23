@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   GripVertical,
   Pencil,
+  Eye,
   Copy,
   Trash2,
   Type,
@@ -30,6 +31,9 @@ interface QuestionCardProps {
   /** Counts, not the findings themselves -- a message-text edit shouldn't re-render every card. */
   errorCount?: number;
   warningCount?: number;
+  /** True for a locked (deployed/complete) survey -- Duplicate/Delete are hidden (they can
+   *  only ever fail), Edit becomes View, and the card isn't draggable. */
+  locked?: boolean;
 }
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -69,7 +73,7 @@ const typeColors: Record<string, string> = {
   automatic: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
 };
 
-const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCount = 0, warningCount = 0 }: QuestionCardProps) => {
+const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCount = 0, warningCount = 0, locked = false }: QuestionCardProps) => {
   const hasValidation = question.numericCheck || question.dateRange ||
     (question.logicCheck && question.logicCheck.length > 0) || question.uniqueCheck;
   const hasSkipLogic = (question.preskip && question.preskip.length > 0) || (question.postskip && question.postskip.length > 0);
@@ -83,7 +87,7 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCou
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: question.id });
+  } = useSortable({ id: question.id, disabled: locked });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -104,9 +108,13 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCou
         <div className="p-4">
           <div className="flex items-start gap-3 w-full">
             <div
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-1 opacity-50 group-hover:opacity-100 transition-opacity touch-none"
+              {...(locked ? {} : attributes)}
+              {...(locked ? {} : listeners)}
+              className={`text-muted-foreground mt-1 transition-opacity touch-none ${
+                locked
+                  ? 'opacity-20 cursor-default'
+                  : 'cursor-grab active:cursor-grabbing hover:text-foreground opacity-50 group-hover:opacity-100'
+              }`}
             >
               <GripVertical className="h-5 w-5" />
             </div>
@@ -178,15 +186,19 @@ const QuestionCard = ({ question, index, onEdit, onDuplicate, onDelete, errorCou
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
-              <Button variant="ghost" size="icon" onClick={onEdit} className="hover:bg-primary/10">
-                <Pencil className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={onEdit} className="hover:bg-primary/10" title={locked ? "View" : "Edit"}>
+                {locked ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
               </Button>
-              <Button variant="ghost" size="icon" onClick={onDuplicate} className="hover:bg-primary/10">
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {!locked && (
+                <>
+                  <Button variant="ghost" size="icon" onClick={onDuplicate} className="hover:bg-primary/10" title="Duplicate">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
