@@ -4,7 +4,7 @@ import { generateManifestGistx } from "@/lib/xml/manifest";
 import { buildSurveyZip } from "@/lib/xml/package";
 import { normalizeStoredQuestions } from "@/lib/xml/normalize";
 import { SurveyStatus, isSurveyLocked } from "@/lib/surveyStatus";
-import { SurveyLockedError } from "@/lib/errors/surveyErrors";
+import { SurveyLockedError, findSurveyIdConflict, surveyIdConflictMessage } from "@/lib/errors/surveyErrors";
 import JSZip from "jszip";
 
 export const surveyService = {
@@ -60,6 +60,25 @@ export const surveyService = {
     // login). This preflight is a TOCTOU-narrowed guard, not a replacement
     // for the trigger.
     await this.assertEditable(pkg.id);
+
+    // 0.5. Refuse before touching storage, for the same TOCTOU reason as
+    // assertEditable above -- but that check alone is not enough. A
+    // genuinely NEW row (different pkg.id) passes assertEditable even when
+    // its chosen Survey ID text collides with an EXISTING row's, because
+    // assertEditable only ever looks up pkg.id. The storage upload below
+    // computes its path purely from the sanitized surveyName, with
+    // upsert:true -- so it would silently overwrite that other survey's
+    // zip before the DB's unique-constraint error (which only fires
+    // afterward, in step 3) ever surfaces. This is exactly how one
+    // deployed survey's zip was destroyed on 2026-08-23: a brand-new
+    // throwaway survey was saved with the same Survey ID text, its tiny
+    // zip overwrote the real one, and the save then failed with a clean
+    // "already exists" error -- which looked like nothing had happened,
+    // while the damage was already done.
+    const conflict = await findSurveyIdConflict(surveyName, projectId, userId, { excludeId: pkg.id });
+    if (conflict) {
+      throw new Error(surveyIdConflictMessage(conflict));
+    }
 
     // 1. Generate the Zip content -- same builder the download button uses, so
     // what is stored and what a user downloads cannot drift apart.

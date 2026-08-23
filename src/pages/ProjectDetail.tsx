@@ -66,6 +66,8 @@ import {
   isSurveyDeletable,
 } from "@/lib/surveyStatus";
 import { findSurveyIdConflict, surveyIdConflictMessage, translateSurveyWriteError } from "@/lib/errors/surveyErrors";
+import { validatePackage } from "@/lib/validation";
+import { ProjectStatus, STATUS_LABEL as PROJECT_STATUS_LABEL, STATUS_BADGE_CLASS as PROJECT_STATUS_BADGE_CLASS, ARCHIVED_BADGE_CLASS as PROJECT_ARCHIVED_BADGE_CLASS } from "@/lib/projectStatus";
 import DuplicateSurveyDialog from "@/components/survey-designer/DuplicateSurveyDialog";
 
 // Import project sub-components
@@ -80,7 +82,8 @@ interface Project {
   name: string;
   slug: string;
   description: string;
-  is_active: boolean;
+  status: ProjectStatus;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -286,6 +289,28 @@ const ProjectDetail = () => {
 
   const handleTransitionStatus = async (survey: SurveyPackage, next: SurveyStatus) => {
     try {
+      // The designer's own Save/Publish button blocks a status move to
+      // test/deployed on validation errors -- this list-level action is
+      // the only other way a survey's status changes, and until now it
+      // bypassed that gate entirely. Loading the full package (rather than
+      // a lighter-weight assembly) is deliberate: pkg.csvFiles, which the
+      // dynamicCsvMissing rule checks against, is only ever populated by
+      // getSurveyPackage's zip download/unzip step -- skipping it would
+      // make every CSV-backed survey fail validation on every promotion.
+      if (next === 'test' || next === 'deployed') {
+        const { pkg } = await surveyService.getSurveyPackage(survey.id);
+        const report = validatePackage(pkg);
+        if (report.hasErrors) {
+          toast({
+            title: "Cannot publish",
+            description: `${report.errorCount} error${report.errorCount === 1 ? '' : 's'} must be ` +
+              `fixed first. Open the survey in the designer to review them.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       await surveyService.updateSurveyStatus(survey.id, next);
       toast({
         title: "Status updated",
@@ -626,9 +651,14 @@ const ProjectDetail = () => {
             <div className="space-y-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold text-foreground">{project.name}</h1>
-                <Badge variant={project.is_active ? 'default' : 'secondary'}>
-                  {project.is_active ? 'Active' : 'Inactive'}
+                <Badge className={PROJECT_STATUS_BADGE_CLASS[project.status]}>
+                  {PROJECT_STATUS_LABEL[project.status]}
                 </Badge>
+                {project.archived_at && (
+                  <Badge variant="outline" className={PROJECT_ARCHIVED_BADGE_CLASS}>
+                    Archived
+                  </Badge>
+                )}
                 {userRole && (
                   <Badge variant="outline">{userRole}</Badge>
                 )}
@@ -958,6 +988,7 @@ const ProjectDetail = () => {
               project={project}
               userRole={userRole}
               onProjectUpdate={fetchProjectData}
+              hasDeployedSurveys={surveys.some(s => s.status === 'deployed')}
             />
           </TabsContent>
         </Tabs >

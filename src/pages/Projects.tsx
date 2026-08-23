@@ -12,25 +12,32 @@ import {
   Users,
   FileSpreadsheet,
   Database,
-  Loader2
+  Loader2,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import CreateProjectDialog from "@/components/projects/CreateProjectDialog";
+import { projectService } from "@/services/projectService";
+import { ProjectStatus, STATUS_LABEL, STATUS_BADGE_CLASS, ARCHIVED_BADGE_CLASS } from "@/lib/projectStatus";
 
 interface Project {
   id: string;
   name: string;
   slug: string;
   description: string;
-  is_active: boolean;
+  status: ProjectStatus;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -46,6 +53,7 @@ const Projects = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -146,14 +154,13 @@ const Projects = () => {
     try {
       setCreating(true);
 
-      // Create the project (always active on creation)
+      // Create the project (status defaults to 'active', archived_at to NULL)
       const { data: project, error: projectError } = await supabase
         .from("projects")
         .insert({
           name: projectData.name,
           slug: projectData.slug,
           description: projectData.description,
-          is_active: true,
           created_by: user.id,
         })
         .select()
@@ -228,11 +235,38 @@ const Projects = () => {
     }
   };
 
-  const filteredProjects = projects.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.slug.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleToggleArchived = async (project: Project) => {
+    try {
+      await projectService.setProjectArchived(project.id, !project.archived_at);
+      toast({
+        title: project.archived_at ? "Project unarchived" : "Project archived",
+        description: project.archived_at
+          ? `"${project.name}" is back in the default list.`
+          : `"${project.name}" is hidden from the default list. Field access and data are unaffected.`,
+      });
+      fetchProjects();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const archivedCount = projects.filter(p => p.archived_at).length;
+
+  const filteredProjects = projects
+    .filter(project => {
+      if (archiveFilter === 'all') return true;
+      if (archiveFilter === 'archived') return !!project.archived_at;
+      return !project.archived_at;
+    })
+    .filter(project =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.slug.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -248,15 +282,27 @@ const Projects = () => {
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        {/* Search + archive filter */}
+        <div className="flex items-center gap-3">
+          <div className="relative max-w-md flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Select value={archiveFilter} onValueChange={(v) => setArchiveFilter(v as typeof archiveFilter)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived ({archivedCount})</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Loading State */}
@@ -302,9 +348,14 @@ const Projects = () => {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-xl">{project.name}</CardTitle>
-                      <Badge variant={project.is_active ? 'default' : 'secondary'}>
-                        {project.is_active ? 'Active' : 'Inactive'}
+                      <Badge className={STATUS_BADGE_CLASS[project.status]}>
+                        {STATUS_LABEL[project.status]}
                       </Badge>
+                      {project.archived_at && (
+                        <Badge variant="outline" className={ARCHIVED_BADGE_CLASS}>
+                          Archived
+                        </Badge>
+                      )}
                     </div>
                     <CardDescription>{project.description}</CardDescription>
                     <div className="flex items-center gap-2 pt-1">
@@ -330,6 +381,24 @@ const Projects = () => {
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/app/projects/${project.slug}`); }}>
                         View Project
                       </DropdownMenuItem>
+                      {project.role === 'owner' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleToggleArchived(project); }}>
+                            {project.archived_at ? (
+                              <>
+                                <ArchiveRestore className="h-4 w-4 mr-2" />
+                                Unarchive
+                              </>
+                            ) : (
+                              <>
+                                <Archive className="h-4 w-4 mr-2" />
+                                Archive
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </CardHeader>

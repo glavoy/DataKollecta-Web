@@ -20,12 +20,18 @@ import {
   Settings,
   Trash2,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { fetchAllRows } from "@/lib/supabasePaging";
+import { projectService } from "@/services/projectService";
+import { ProjectStatus, STATUS_LABEL, STATUS_DESCRIPTION, STATUS_BADGE_CLASS } from "@/lib/projectStatus";
 
 interface ProjectSettingsProps {
   project: {
@@ -33,25 +39,93 @@ interface ProjectSettingsProps {
     name: string;
     slug: string;
     description: string;
-    is_active: boolean;
+    status: ProjectStatus;
+    archived_at: string | null;
   };
   userRole: string | null;
   onProjectUpdate: () => void;
+  /** Whether this project has a currently-deployed survey -- gates the
+   *  pause confirmation, since pausing is the one action here that can
+   *  interrupt live field collection. */
+  hasDeployedSurveys: boolean;
 }
 
-const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettingsProps) => {
+const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurveys }: ProjectSettingsProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || "");
-  const [isActive, setIsActive] = useState(project.is_active);
   const [saving, setSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  // Status and archiving are immediate-apply (via projectService), unlike
+  // name/description which stay staged behind the "Save Changes" button
+  // below -- pausing now has real enforcement teeth (see applyStatusChange)
+  // and bundling it into a generic multi-field save would make it too easy
+  // to pause a project as a side effect of an unrelated text edit.
+  const [status, setStatus] = useState<ProjectStatus>(project.status);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [pauseWarningOpen, setPauseWarningOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
   const isOwner = userRole === 'owner';
+
+  const applyStatusChange = async (next: ProjectStatus) => {
+    setStatusSaving(true);
+    try {
+      await projectService.setProjectStatus(project.id, next);
+      setStatus(next);
+      toast({
+        title: "Status updated",
+        description: next === 'paused'
+          ? "Field access is now revoked -- new logins are blocked and any device already logged in loses access on its next sync."
+          : "Field access restored -- devices can log in and sync again.",
+      });
+      onProjectUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update status.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const handleStatusToggle = (checked: boolean) => {
+    const next: ProjectStatus = checked ? 'active' : 'paused';
+    if (next === 'paused' && hasDeployedSurveys) {
+      setPauseWarningOpen(true);
+      return;
+    }
+    applyStatusChange(next);
+  };
+
+  const handleToggleArchived = async () => {
+    setArchiving(true);
+    try {
+      await projectService.setProjectArchived(project.id, !project.archived_at);
+      toast({
+        title: project.archived_at ? "Project unarchived" : "Project archived",
+        description: project.archived_at
+          ? undefined
+          : "Hidden from your default project list. Field access and data are unaffected.",
+      });
+      onProjectUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update.",
+        variant: "destructive",
+      });
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -70,7 +144,6 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
         .update({
           name: name.trim(),
           description: description.trim(),
-          is_active: isActive,
           updated_at: new Date().toISOString(),
         })
         .eq('id', project.id);
@@ -247,31 +320,6 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
             />
           </div>
 
-          <Separator />
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Project Status</p>
-                <p className="text-sm text-muted-foreground">
-                  {isActive ? "Active" : "Inactive"}
-                </p>
-              </div>
-              <Switch
-                checked={isActive}
-                onCheckedChange={setIsActive}
-                disabled={!isOwner}
-              />
-            </div>
-            <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">What does this mean?</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li><strong>Active:</strong> Field workers can download surveys and upload data from the mobile app</li>
-                <li><strong>Inactive:</strong> Project is hidden from the mobile app. Field workers cannot access it. Useful when data collection is complete or paused.</li>
-              </ul>
-            </div>
-          </div>
-
           {isOwner && (
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -280,6 +328,91 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
           )}
         </CardContent>
       </Card>
+
+      {/* Access & Visibility -- immediate-apply, deliberately separate from
+          the General card's staged Save Changes: pausing has real
+          enforcement effects and shouldn't ride along with an unrelated
+          text edit. */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Access & Visibility</CardTitle>
+          </div>
+          <CardDescription>Field-device access and where this project shows up in your list</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Project Status</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Badge className={STATUS_BADGE_CLASS[status]}>{STATUS_LABEL[status]}</Badge>
+                  {statusSaving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                </div>
+              </div>
+              <Switch
+                checked={status === 'active'}
+                onCheckedChange={handleStatusToggle}
+                disabled={!isOwner || statusSaving}
+              />
+            </div>
+            <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">What does this mean?</p>
+              <p>{STATUS_DESCRIPTION[status]}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">{project.archived_at ? 'Archived' : 'Archive project'}</p>
+              <p className="text-sm text-muted-foreground">
+                {project.archived_at
+                  ? 'Hidden from your default project list. Field access and data are unaffected.'
+                  : 'Hides this project from your default list. Does not affect field access or data -- unarchive anytime.'}
+              </p>
+            </div>
+            {isOwner && (
+              <Button variant="outline" onClick={handleToggleArchived} disabled={archiving}>
+                {archiving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : project.archived_at ? (
+                  <ArchiveRestore className="h-4 w-4 mr-2" />
+                ) : (
+                  <Archive className="h-4 w-4 mr-2" />
+                )}
+                {project.archived_at ? 'Unarchive' : 'Archive'}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pause-with-deployed-surveys confirmation -- the one action here
+          that can interrupt live field collection, so it gets its own
+          confirmation unlike Archive below, which never affects access. */}
+      <AlertDialog open={pauseWarningOpen} onOpenChange={setPauseWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pause this project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This project has a deployed survey. Pausing blocks new logins immediately, and any
+              device already logged in loses access the next time it tries to sync -- including
+              mid-collection. Portal editing is unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setPauseWarningOpen(false); applyStatusChange('paused'); }}
+            >
+              Pause anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Danger Zone */}
       {isOwner && (

@@ -35,7 +35,6 @@ interface ProjectWithStats {
   name: string;
   slug: string;
   description: string;
-  is_active: boolean;
   submissionsCount: number;
   formsCount: number;
 }
@@ -63,7 +62,7 @@ const DataView = () => {
       // Get projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('id, name, slug, description, is_active')
+        .select('id, name, slug, description')
         .in('id', projectIds);
 
       if (projectsError) throw projectsError;
