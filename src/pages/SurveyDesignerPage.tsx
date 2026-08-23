@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { surveyService } from "@/services/surveyService";
 import { SurveyPackage } from "@/types/survey";
+import { SurveyStatus } from "@/lib/surveyStatus";
 
 const SurveyDesignerPage = () => {
   const { slug, surveyId } = useParams<{ slug: string; surveyId: string }>();
@@ -17,6 +18,8 @@ const SurveyDesignerPage = () => {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [initialPackage, setInitialPackage] = useState<SurveyPackage | undefined>(undefined);
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
+  // A brand-new (not-yet-saved) survey is always a draft.
+  const [surveyStatus, setSurveyStatus] = useState<SurveyStatus>('draft');
   const [loading, setLoading] = useState(true);
   // Which survey (or 'new') the currently-loaded/loading package belongs to.
   // Lets the load effect tell "the route actually changed, we need a fresh
@@ -67,9 +70,10 @@ const SurveyDesignerPage = () => {
         if (surveyId) {
           // Edit existing survey
           try {
-            const { pkg, serverUpdatedAt: updatedAt } = await surveyService.getSurveyPackage(surveyId);
+            const { pkg, serverUpdatedAt: updatedAt, status } = await surveyService.getSurveyPackage(surveyId);
             setInitialPackage(pkg);
             setServerUpdatedAt(updatedAt);
+            setSurveyStatus(status);
           } catch (err) {
             console.error('Error loading survey:', err);
             toast({
@@ -88,6 +92,7 @@ const SurveyDesignerPage = () => {
             forms: []
           });
           setServerUpdatedAt(null);
+          setSurveyStatus('draft');
         }
 
       } catch (error: any) {
@@ -133,6 +138,8 @@ const SurveyDesignerPage = () => {
           initialPackage={initialPackage}
           serverUpdatedAt={serverUpdatedAt}
           surveyRecordId={surveyId}
+          surveyStatus={surveyStatus}
+          onStatusChange={setSurveyStatus}
         />
       </div>
     </AppLayout>

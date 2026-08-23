@@ -77,17 +77,30 @@ serve(async (req) => {
             .update({ last_used_at: new Date().toISOString() })
             .eq("id", credential.id);
 
-        // 5. Get available surveys
+        // 5. Get available surveys.
+        // Filtered in code rather than in the query: a `survey_status` enum
+        // rename (e.g. 'active' -> 'deployed') would make `.eq("status", ...)`
+        // raise "invalid input value for enum", and since the error here is
+        // destructured away, `surveys` would silently become null -- every
+        // phone would see zero downloadable surveys with no error anywhere.
+        // "active" is the pre-rename spelling of "deployed", kept so this
+        // can ship ahead of (and survive) that migration.
         const { data: surveys } = await supabase
             .from("survey_packages")
-            .select("id, name, display_name, version_date, zip_file_path, manifest, updated_at")
+            .select("id, name, display_name, version_date, zip_file_path, manifest, updated_at, status")
             .eq("project_id", project.id)
-            .eq("status", "active")
             .order("updated_at", { ascending: false });
+
+        const DOWNLOADABLE_STATUSES = new Set(["deployed", "active", "test"]);
+        // archived_at is deliberately NOT consulted here -- archiving only
+        // hides a survey from the portal's default list. It does not stop
+        // downloads; "complete" is what stops downloads. Keeping the two
+        // independent is what makes each one predictable.
+        const downloadableSurveys = (surveys || []).filter((s) => DOWNLOADABLE_STATUSES.has(s.status));
 
         // 6. Generate signed URLs for survey downloads (valid 24 hours)
         const surveysWithUrls = await Promise.all(
-            (surveys || []).map(async (survey) => {
+            downloadableSurveys.map(async (survey) => {
                 let downloadUrl = null;
                 if (survey.zip_file_path) {
                     const { data, error: signError } = await supabase.storage
@@ -102,9 +115,14 @@ serve(async (req) => {
                     downloadUrl = data?.signedUrl ?? null;
                 }
 
+                // Marks test packages at the point a tester actually chooses
+                // one -- the download screen -- with no Flutter change needed.
+                const baseName = survey.display_name || survey.name;
+                const displayName = survey.status === "test" ? `[TEST] ${baseName}` : baseName;
+
                 return {
                     id: survey.id,
-                    name: survey.display_name || survey.name, // Prefer display name
+                    name: displayName,
                     version: survey.version_date, // Map version_date to version field
                     manifest: survey.manifest,
                     updated_at: survey.updated_at,

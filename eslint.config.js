@@ -5,7 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // supabase/.temp is `supabase start`'s scratch dir (secrets, bundled edge
+  // function output) -- regenerated every run, not source.
+  { ignores: ["dist", "supabase/.temp"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

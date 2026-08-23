@@ -35,6 +35,7 @@ import {
   ArrowLeft,
   AlertCircle,
   CheckCircle2,
+  Lock,
 } from "lucide-react";
 import {
   DndContext,
@@ -72,6 +73,9 @@ import { validatePackage, type Finding, type FindingPart } from "@/lib/validatio
 import { useDraftMirror } from "@/hooks/useDraftMirror";
 import { renameFieldAcrossPackage, renameInQuestion } from "@/lib/xml/rename";
 import { surveyDraftKey, readDraft, clearDraft, evaluateDraft, type SurveyDraft } from "@/lib/draftStorage";
+import { SurveyStatus, isSurveyLocked, isLegalTransition, STATUS_LABEL } from "@/lib/surveyStatus";
+import { translateSurveyWriteError } from "@/lib/errors/surveyErrors";
+import DuplicateSurveyDialog from "./DuplicateSurveyDialog";
 
 // Get default field type based on question type
 const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] => {
@@ -140,9 +144,14 @@ interface SurveyDesignerProps {
   projectId?: string | null;
   projectSlug?: string;
   userId?: string;
+  /** Current lifecycle status of `surveyRecordId`. Draft when creating new. */
+  surveyStatus?: SurveyStatus;
+  /** Called after a successful status-changing save so the page-level state
+   *  (and this component's own gating) stays in sync without a re-fetch. */
+  onStatusChange?: (status: SurveyStatus) => void;
 }
 
-const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId }: SurveyDesignerProps) => {
+const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId, surveyStatus = 'draft', onStatusChange }: SurveyDesignerProps) => {
   const { toast } = useToast();
   const [surveyPackage, setSurveyPackage] = useState<SurveyPackage>(
     initialPackage || {
@@ -165,6 +174,15 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   const [initialEditorTab, setInitialEditorTab] = useState<'basic' | 'responses' | 'validation' | 'logic'>('basic');
   const [deleteFormId, setDeleteFormId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [showDeployConfirm, setShowDeployConfirm] = useState(false);
+
+  // Deployed/complete surveys are read-only -- questions on a device must
+  // never drift silently out from under it. The DB triggers are the real
+  // enforcement (they fire regardless of this), but hiding Save/Publish
+  // here means a locked survey never even gets to a rejected write --
+  // there is simply nothing to click that would attempt one.
+  const locked = isSurveyLocked(surveyStatus);
 
   // True whenever `surveyPackage` holds edits the project doesn't have.
   // Drives the Save Draft/Publish affordance, the local draft mirror, and
@@ -258,6 +276,19 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   const updatePackage = (
     update: Partial<SurveyPackage> | ((prev: SurveyPackage) => Partial<SurveyPackage>)
   ) => {
+    // Every content mutation in this component (form add/delete/duplicate,
+    // question add/edit/delete/duplicate/reorder, global settings) funnels
+    // through here, so gating it once here is equivalent to gating every
+    // entry point individually.
+    if (locked) {
+      toast({
+        title: "This survey is locked",
+        description: `It is ${STATUS_LABEL[surveyStatus].toLowerCase()} and its content can no ` +
+          `longer be changed. Use Duplicate to create an editable copy.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setSurveyPackage(prev => ({ ...prev, ...(typeof update === 'function' ? update(prev) : update) }));
     setDirty(true);
   };
@@ -290,7 +321,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
     toast({ title: "Local copy discarded" });
   };
 
-  const handleSaveToProject = async (status: 'draft' | 'active' = 'draft') => {
+  const handleSaveToProject = async (status: SurveyStatus = 'draft') => {
     if (!projectId || !userId) {
       toast({
         title: "Cannot save",
@@ -300,10 +331,16 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
       return;
     }
 
-    // Save Draft never blocks -- a survey mid-edit is allowed to be broken.
-    // Publish does: a broken survey reaching a field device is the one
-    // outcome this whole engine exists to prevent.
-    if (status === 'active' && report.hasErrors) {
+    // Content edits are only ever saved while status stays draft or test --
+    // a locked survey has no Save/Publish button to reach this from at all,
+    // and updatePackage above refuses the in-memory edit before it gets
+    // this far. Reaching 'deployed' here means only the status transition
+    // is being requested on already-saved content.
+    //
+    // A broken survey must never become downloadable to a phone -- widened
+    // from the original active-only gate to both test and deployed, since
+    // test packages reach real devices too.
+    if ((status === 'test' || status === 'deployed') && report.hasErrors) {
       toast({
         title: "Cannot publish",
         description: `${report.errorCount} error${report.errorCount === 1 ? '' : 's'} must be fixed first.`,
@@ -338,21 +375,27 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
       setDirty(false);
       baseServerUpdatedAtRef.current = savedRow?.updated_at ?? null;
       if (userId) clearDraft(userId, surveyKey);
+      onStatusChange?.(status);
 
       toast({
         title: "Success",
-        description: `Survey package ${status === 'active' ? 'published' : 'saved'} successfully.`,
+        description: `Survey package ${status === 'deployed' ? 'deployed' : 'saved'} successfully.`,
       });
     } catch (error: any) {
       console.error('Error saving survey:', error);
       toast({
         title: "Error saving survey",
-        description: error.message || "An unexpected error occurred.",
+        description: translateSurveyWriteError(error) ?? error.message ?? "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeploy = () => {
+    setShowDeployConfirm(false);
+    handleSaveToProject('deployed');
   };
 
   const updateForm = (formId: string, updates: Partial<SurveyForm>) => {
@@ -566,6 +609,17 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
           </Button>
         </div>
 
+        {locked && (
+          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 flex-shrink-0" />
+            <span>
+              This survey is {STATUS_LABEL[surveyStatus].toLowerCase()} and can no longer be
+              edited{surveyStatus === 'deployed' ? ' -- it is already installed on field devices under this Survey ID' : ''}.
+              {' '}Duplicate it to make changes.
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-border">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowGlobalSettings(true)}>
@@ -578,33 +632,93 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            {dirty && (
+            {dirty && !locked && (
               <span className="text-xs text-muted-foreground">Unsaved changes</span>
             )}
-            <Button
-              variant="outline"
-              onClick={() => handleSaveToProject('draft')}
-              disabled={!projectId || isSaving}
-              size="sm"
-            >
-              Save Draft
-            </Button>
-            <Button
-              variant="default"
-              onClick={() => handleSaveToProject('active')}
-              disabled={!projectId || isSaving}
-              size="sm"
-            >
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CloudUpload className="h-4 w-4 mr-2" />
-              )}
-              Publish
-            </Button>
+
+            {locked ? (
+              <Button variant="default" size="sm" onClick={() => setShowDuplicateDialog(true)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicate to revise
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSaveToProject(surveyStatus === 'test' ? 'test' : 'draft')}
+                  disabled={!projectId || isSaving}
+                  size="sm"
+                >
+                  {surveyStatus === 'test' ? 'Save' : 'Save Draft'}
+                </Button>
+                {isLegalTransition(surveyStatus, 'test') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSaveToProject('test')}
+                    disabled={!projectId || isSaving}
+                    size="sm"
+                  >
+                    Promote to Test
+                  </Button>
+                )}
+                <Button
+                  variant="default"
+                  onClick={() => setShowDeployConfirm(true)}
+                  disabled={!projectId || isSaving}
+                  size="sm"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CloudUpload className="h-4 w-4 mr-2" />
+                  )}
+                  Deploy
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDeployConfirm} onOpenChange={setShowDeployConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deploy this survey?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deploying locks this survey -- its questions can never be changed again. To make
+              changes later you will duplicate it under a new Survey ID. Phones will download it
+              at their next login (sessions last up to 30 days, so it may not reach every device
+              immediately).
+              {surveyStatus === 'draft' && (
+                <>
+                  {' '}This survey has not been through Test -- consider Promote to Test first so
+                  it can be tried on a real device before it's locked.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeploy}>Deploy</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {projectId && (
+        <DuplicateSurveyDialog
+          open={showDuplicateDialog}
+          onOpenChange={setShowDuplicateDialog}
+          source={{
+            id: surveyPackage.id,
+            surveyId: surveyPackage.surveyId,
+            displayName: surveyPackage.name,
+            databaseName: surveyPackage.databaseName,
+          }}
+          projectId={projectId}
+          userId={userId}
+          projectSlug={projectSlug}
+        />
+      )}
 
 
       {/* Forms Tabs */}

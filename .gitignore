@@ -41,3 +41,8 @@ enrollee.xml
 # Windows null device file (created by some build tools)
 nul
 tmp
+
+# Supabase CLI's local dev stack scratch dir (`supabase start`) -- secrets and
+# bundled edge function output, regenerated every run, never meant to be
+# committed or linted.
+supabase/.temp

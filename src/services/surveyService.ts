@@ -3,9 +3,42 @@ import { SurveyPackage, CsvFile } from "@/types/survey";
 import { generateManifestGistx } from "@/lib/xml/manifest";
 import { buildSurveyZip } from "@/lib/xml/package";
 import { normalizeStoredQuestions } from "@/lib/xml/normalize";
+import { SurveyStatus, isSurveyLocked } from "@/lib/surveyStatus";
+import { SurveyLockedError } from "@/lib/errors/surveyErrors";
 import JSZip from "jszip";
 
 export const surveyService = {
+  /**
+   * Throws SurveyLockedError if the given survey_packages row exists and its
+   * status locks content edits (see LOCKED_STATUSES in surveyStatus.ts). A
+   * missing row is treated as "not yet created" and allowed through -- the
+   * caller is about to insert it.
+   *
+   * This is a preflight, not the enforcement -- the DB trigger
+   * (enforce_survey_package_lifecycle / enforce_crf_parent_unlocked) is the
+   * real backstop and fires regardless of whether this ran. The preflight
+   * exists so saveSurveyPackage can refuse BEFORE overwriting the storage
+   * zip, which the trigger cannot undo.
+   */
+  async assertEditable(surveyPackageId: string): Promise<void> {
+    const { data: existing, error } = await supabase
+      .from('survey_packages')
+      .select('id, name, display_name, status')
+      .eq('id', surveyPackageId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!existing) return; // New survey -- nothing to protect yet.
+
+    if (isSurveyLocked(existing.status as SurveyStatus)) {
+      throw new SurveyLockedError(
+        existing.name as string,
+        (existing.display_name as string) ?? (existing.name as string),
+        existing.status as SurveyStatus
+      );
+    }
+  },
+
   /**
    * Saves the survey package (forms/CRFs) to a new survey_packages record.
    * Creates a new survey version with display_name and name.
@@ -16,8 +49,18 @@ export const surveyService = {
     userId: string,
     surveyDisplayName: string,
     surveyName: string,
-    status: 'draft' | 'active' | 'ready' = 'draft'
+    status: SurveyStatus = 'draft'
   ) {
+    // 0. Refuse before touching storage. The upload below is `upsert: true`
+    // and happens BEFORE the DB write -- if a locked survey's save reached
+    // that upload, the deployed package's zip would already be overwritten
+    // by the time the DB trigger rejected the update, and the next phone to
+    // log in would download the edited content under an unchanged
+    // "deployed" row (app-login re-signs from zip_file_path on every
+    // login). This preflight is a TOCTOU-narrowed guard, not a replacement
+    // for the trigger.
+    await this.assertEditable(pkg.id);
+
     // 1. Generate the Zip content -- same builder the download button uses, so
     // what is stored and what a user downloads cannot drift apart.
     const manifestJson = generateManifestGistx(pkg);
@@ -142,7 +185,7 @@ export const surveyService = {
    * Loads the survey package for a specific survey_package_id.
    * Returns the survey with all its CRFs/questionnaires.
    */
-  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null }> {
+  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null; status: SurveyStatus; archivedAt: string | null }> {
     // 1. Fetch the survey package
     const { data: survey, error: surveyError } = await supabase
       .from('survey_packages')
@@ -224,7 +267,12 @@ export const surveyService = {
         };
       })
     };
-    return { pkg, serverUpdatedAt: survey.updated_at ?? null };
+    return {
+      pkg,
+      serverUpdatedAt: survey.updated_at ?? null,
+      status: survey.status as SurveyStatus,
+      archivedAt: survey.archived_at ?? null,
+    };
   },
 
   /**
@@ -335,5 +383,126 @@ export const surveyService = {
     }
 
     return data.signedUrl;
-  }
+  },
+
+  /**
+   * Moves a survey to a new lifecycle status. This is the ONLY place status
+   * should be written -- it sends exactly {status, updated_at, published_at?}
+   * and nothing else, because the DB lock trigger's content-change check
+   * compares every other column between OLD and NEW; sending along a stale
+   * version_date or manifest here would trip it even though nothing about
+   * the survey's content actually changed.
+   *
+   * The DB trigger (enforce_survey_package_lifecycle) is the authority on
+   * which transitions are legal; this does not duplicate that check
+   * client-side beyond what the UI needs to decide which buttons to show
+   * (see LEGAL_TRANSITIONS in surveyStatus.ts).
+   */
+  async updateSurveyStatus(surveyPackageId: string, next: SurveyStatus): Promise<void> {
+    const update: Record<string, unknown> = {
+      status: next,
+      updated_at: new Date().toISOString(),
+    };
+    // Set once, on the first move into 'deployed' -- left alone on every
+    // other transition, including a later deployed -> complete -> deployed.
+    if (next === 'deployed') {
+      update.published_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('survey_packages')
+      .update(update)
+      .eq('id', surveyPackageId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Archives or unarchives a survey. Deliberately separate from
+   * updateSurveyStatus: archiving is an independent axis from lifecycle
+   * status (see the comment on archived_at in the lifecycle migration) and
+   * works at ANY status, locked included -- the lock trigger's content-diff
+   * excludes archived_at for exactly this reason.
+   */
+  async setSurveyArchived(surveyPackageId: string, archived: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('survey_packages')
+      .update({
+        archived_at: archived ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', surveyPackageId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Duplicates a survey into a new, independent draft with a new survey ID.
+   * This is the sanctioned way to revise a locked (deployed/complete)
+   * survey -- edits are refused in place, so a copy is the only path
+   * forward. Works for surveys created via either path (designer save or
+   * ZIP upload), since both write `crfs` rows in the same shape that
+   * getSurveyPackage reconstructs from.
+   *
+   * Every id in the copied package is regenerated. This is the sharp edge:
+   * saveSurveyPackage upserts survey_packages on pkg.id and crfs on
+   * form.id, so reusing the SOURCE's ids here would silently overwrite the
+   * source's row (and repoint its forms at the copy) instead of creating a
+   * new one. Field NAMES are left untouched -- skip logic, linkingfield,
+   * primaryKey, display_fields and the generated XML all key off names, not
+   * ids.
+   *
+   * databaseName defaults to `${newSurveyId}.sqlite` rather than carrying
+   * over the source's -- see the design note in the lifecycle plan. The
+   * "database name must stay stable" rule is about versions of the SAME
+   * survey id, which the unique indexes on `name` make impossible anyway;
+   * a duplicate is a different survey, and sharing a database file across
+   * two different surveys' schemas is corruption (colliding tables, one
+   * shared id sequence, ids from the copy minted under the source's
+   * counter), not a convenience. Callers may still override it.
+   */
+  async duplicateSurveyPackage(args: {
+    sourceId: string;
+    targetProjectId: string;
+    newSurveyId: string;
+    newDisplayName: string;
+    userId: string;
+    databaseName?: string;
+  }) {
+    const { pkg: source } = await this.getSurveyPackage(args.sourceId);
+
+    const copy: SurveyPackage = {
+      ...source,
+      id: crypto.randomUUID(),
+      surveyId: args.newSurveyId,
+      name: args.newDisplayName,
+      databaseName: args.databaseName || `${args.newSurveyId}.sqlite`,
+      csvFiles: (source.csvFiles || []).map(f => ({ ...f, id: crypto.randomUUID() })),
+      forms: source.forms.map(form => ({
+        ...form,
+        id: crypto.randomUUID(),
+        // Question ids are remapped; field NAMES are left alone on purpose
+        // (see the doc comment above) -- only .id changes here.
+        questions: form.questions.map(q => ({ ...q, id: crypto.randomUUID() })),
+      })),
+    };
+
+    const saved = await this.saveSurveyPackage(
+      copy,
+      args.targetProjectId,
+      args.userId,
+      args.newDisplayName,
+      args.newSurveyId,
+      'draft'
+    );
+
+    const { error } = await supabase
+      .from('survey_packages')
+      .update({ copied_from: args.sourceId })
+      .eq('id', saved.id);
+
+    if (error) throw error;
+
+    return saved;
+  },
 };

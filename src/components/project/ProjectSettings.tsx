@@ -105,8 +105,25 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
 
     setDeleting(true);
     try {
-      // Delete in order: formchanges → submissions → crfs → survey_packages →
-      // app_sessions → app_credentials → project_members → projects
+      // Delete in order: formchanges → submissions → survey_packages (storage
+      // only, see step 4) → app_sessions → app_credentials → project_members
+      // → projects.
+      //
+      // crfs and survey_packages rows are deliberately NOT deleted here --
+      // they cascade from the `projects` delete at the end. That is a
+      // change from deleting them explicitly: the survey lifecycle guard
+      // triggers (enforce_survey_package_delete_guard /
+      // enforce_crf_parent_unlocked) refuse a DIRECT delete of a
+      // deployed/complete survey or its forms, precisely so a locked
+      // survey can't be removed out from under field devices by any route
+      // other than deleting the whole project. They exempt cascades that
+      // arrive because the parent row is already gone (Postgres removes
+      // the parent before running the RI cascade) -- which is exactly the
+      // path `DELETE FROM projects` takes, but an explicit
+      // `DELETE FROM survey_packages ... WHERE project_id = ...` is not:
+      // the parent project row is still very much present, so the guard
+      // would fire and abort this entire "delete project" flow the moment
+      // it hit a project that had ever deployed a survey.
 
       // 1. Delete formchanges directly by project_id -- it carries that
       // column itself (NOT NULL), so there is no need to enumerate
@@ -126,10 +143,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
       // 2. Delete submissions
       await supabase.from('submissions').delete().eq('project_id', project.id);
 
-      // 3. Delete CRFs
-      await supabase.from('crfs').delete().eq('project_id', project.id);
-
-      // 4. Delete survey packages (and their storage files)
+      // 3. Storage isn't governed by the DB's referential integrity, so it
+      // needs its own cleanup regardless of how the rows go away -- collect
+      // every zip path now and remove the objects. The survey_packages and
+      // crfs ROWS are left for the `projects` cascade (see the note above).
       const surveyPackages = await fetchAllRows<{ zip_file_path: string | null }>((from, to) =>
         supabase.from('survey_packages').select('zip_file_path').eq('project_id', project.id).range(from, to),
       );
@@ -138,18 +155,19 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate }: ProjectSettings
       if (filePaths.length > 0) {
         await supabase.storage.from('surveys').remove(filePaths);
       }
-      await supabase.from('survey_packages').delete().eq('project_id', project.id);
 
-      // 5. Delete app sessions
+      // 4. Delete app sessions
       await supabase.from('app_sessions').delete().eq('project_id', project.id);
 
-      // 6. Delete app credentials
+      // 5. Delete app credentials
       await supabase.from('app_credentials').delete().eq('project_id', project.id);
 
-      // 7. Delete project members
+      // 6. Delete project members
       await supabase.from('project_members').delete().eq('project_id', project.id);
 
-      // 8. Delete the project
+      // 7. Delete the project -- cascades to survey_packages, then from
+      // there to crfs (both ON DELETE CASCADE), which is what lets this
+      // succeed even when the project contains a locked survey.
       const { error } = await supabase
         .from('projects')
         .delete()

@@ -21,14 +21,27 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
   ArrowLeft,
   Plus,
   Loader2,
   Edit2,
+  Eye,
   FileCode,
   FileUp,
   Download,
   Trash2,
+  Copy,
+  Archive,
+  ArchiveRestore,
+  MoreVertical,
   LayoutDashboard,
   FileSpreadsheet,
   Database,
@@ -44,6 +57,16 @@ import { parseSurveyDocument } from "@/lib/xmlParser";
 import { surveyService } from "@/services/surveyService";
 import { projectMemberService } from "@/services/projectMemberService";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
+import {
+  SurveyStatus,
+  LEGAL_TRANSITIONS,
+  STATUS_LABEL,
+  STATUS_BADGE_CLASS,
+  ARCHIVED_BADGE_CLASS,
+  isSurveyDeletable,
+} from "@/lib/surveyStatus";
+import { findSurveyIdConflict, surveyIdConflictMessage, translateSurveyWriteError } from "@/lib/errors/surveyErrors";
+import DuplicateSurveyDialog from "@/components/survey-designer/DuplicateSurveyDialog";
 
 // Import project sub-components
 import ProjectOverview from "@/components/project/ProjectOverview";
@@ -68,10 +91,12 @@ interface SurveyPackage {
   name: string;
   display_name: string;
   version_date: string;
-  status: string;
+  status: SurveyStatus;
   description: string;
   zip_file_path: string;
   created_at: string;
+  archived_at: string | null;
+  copied_from: string | null;
 }
 
 interface ProjectStats {
@@ -127,6 +152,16 @@ const ProjectDetail = () => {
   // Delete Dialog State
   const [surveyToDelete, setSurveyToDelete] = useState<SurveyPackage | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+
+  // Surveys tab: which surveys are visible, plus the two dialogs launched
+  // from a survey's row menu.
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [surveyToDuplicate, setSurveyToDuplicate] = useState<SurveyPackage | null>(null);
+  const [surveyForTransition, setSurveyForTransition] = useState<{ survey: SurveyPackage; next: SurveyStatus } | null>(null);
+  // Archiving a survey that's still deployed doesn't stop phones downloading
+  // it -- that's what "Complete" is for. Confirm before archiving one of
+  // those, since it's easy to assume archiving hides it from devices too.
+  const [archiveWarningSurvey, setArchiveWarningSurvey] = useState<SurveyPackage | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -249,9 +284,73 @@ const ProjectDetail = () => {
     }
   };
 
+  const handleTransitionStatus = async (survey: SurveyPackage, next: SurveyStatus) => {
+    try {
+      await surveyService.updateSurveyStatus(survey.id, next);
+      toast({
+        title: "Status updated",
+        description: `"${survey.display_name}" is now ${STATUS_LABEL[next].toLowerCase()}.`,
+      });
+      setSurveyForTransition(null);
+      fetchProjectData();
+    } catch (error: any) {
+      console.error("Status update error:", error);
+      toast({
+        title: "Could not update status",
+        description: translateSurveyWriteError(error) ?? error.message ?? "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleArchiveClick = (survey: SurveyPackage) => {
+    if (!survey.archived_at && survey.status === 'deployed') {
+      setArchiveWarningSurvey(survey);
+      return;
+    }
+    handleToggleArchived(survey);
+  };
+
+  const handleToggleArchived = async (survey: SurveyPackage) => {
+    try {
+      await surveyService.setSurveyArchived(survey.id, !survey.archived_at);
+      toast({
+        title: survey.archived_at ? "Survey unarchived" : "Survey archived",
+        description: survey.archived_at
+          ? `"${survey.display_name}" is back in the default list.`
+          : `"${survey.display_name}" is hidden from the default list. Data, downloads, and Duplicate are unaffected.`,
+      });
+      fetchProjectData();
+    } catch (error: any) {
+      console.error("Archive toggle error:", error);
+      toast({
+        title: "Could not update",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteSurvey = async (surveyId: string) => {
     try {
       const surveyToDelete = surveys.find(s => s.id === surveyId);
+
+      // Refuse BEFORE touching anything. The DB guard triggers only cover
+      // the crfs and survey_packages tables -- this function deletes the
+      // storage zip and every submission/formchange for the survey FIRST,
+      // several steps before it ever reaches a guarded table. Without this
+      // preflight, attempting to delete a locked survey would destroy its
+      // zip and all field data, and only THEN get stopped by the trigger on
+      // crfs -- leaving a "deployed" row with no zip and no submissions.
+      if (surveyToDelete && !isSurveyDeletable(surveyToDelete.status)) {
+        toast({
+          title: "Cannot delete",
+          description: `"${surveyToDelete.display_name}" is ${surveyToDelete.status} and cannot ` +
+            `be deleted. Archive it instead if you want it out of the way.`,
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Delete the zip file from storage first
       if (surveyToDelete && surveyToDelete.zip_file_path) {
@@ -368,19 +467,15 @@ const ProjectDetail = () => {
         throw new Error("Invalid Manifest: 'surveyId' is required.");
       }
 
-      // Check if survey already exists - REJECT if it does
-      const { data: existingSurvey } = await supabase
-        .from('survey_packages')
-        .select('id, display_name')
-        .eq('project_id', project.id)
-        .eq('name', surveyId)
-        .maybeSingle();
-
-      if (existingSurvey) {
-        throw new Error(
-          `A survey with ID "${surveyId}" already exists in this project. ` +
-          `Please delete the existing survey "${existingSurvey.display_name}" first, or use a different Survey ID in the manifest.`
-        );
+      // Check if survey already exists - REJECT if it does. Covers both
+      // unique indexes on survey_packages (project-scoped AND the global
+      // per-account one), not just the project-scoped case this used to
+      // check -- see findSurveyIdConflict's doc comment.
+      if (user?.id) {
+        const conflict = await findSurveyIdConflict(surveyId, project.id, user.id);
+        if (conflict) {
+          throw new Error(surveyIdConflictMessage(conflict));
+        }
       }
 
       // Use surveyId from manifest as the storage filename (consistent with surveyService.ts)
@@ -404,9 +499,12 @@ const ProjectDetail = () => {
           description: uploadDescription || manifest.description || "",
           zip_file_path: filePath,
           manifest: manifest,
-          status: 'active',
+          // Uploaded packages land as a draft rather than going straight to
+          // phones -- promote deliberately from the surveys list once
+          // reviewed. (Previously hardcoded 'active', with published_at set
+          // alongside it; both removed.)
+          status: 'draft',
           created_by: user?.id,
-          published_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -474,7 +572,8 @@ const ProjectDetail = () => {
 
       toast({
         title: "Success",
-        description: `Survey uploaded and published. ${crfsToInsert.length} form(s) processed.`,
+        description: `Survey uploaded as a draft. ${crfsToInsert.length} form(s) processed. ` +
+          `Promote it from the surveys list when it's ready.`,
       });
 
       setIsUploadOpen(false);
@@ -485,22 +584,9 @@ const ProjectDetail = () => {
     } catch (error: any) {
       console.error('Upload error:', error);
 
-      let errorMessage = error.message || "Failed to process survey package.";
-
-      // Handle unique constraint violations for survey ID
-      if (error.code === '23505') {
-        if (
-          error.message?.includes('survey_packages_name_created_by_idx') ||
-          error.details?.includes('survey_packages_name_created_by_idx') ||
-          JSON.stringify(error).includes('survey_packages_name_created_by_idx')
-        ) {
-          errorMessage = "You already have a survey with this ID (Survey Name). Please verify that the 'surveyId' in your manifest is unique.";
-        }
-      }
-
       toast({
         title: "Upload Failed",
-        description: errorMessage,
+        description: translateSurveyWriteError(error) ?? error.message ?? "Failed to process survey package.",
         variant: "destructive",
       });
     } finally {
@@ -690,6 +776,24 @@ const ProjectDetail = () => {
                 </CardContent>
               </Card>
             ) : (
+              <>
+                {(() => {
+                  const archivedCount = surveys.filter(s => s.archived_at).length;
+                  return (
+                    <div className="flex items-center justify-end mb-3">
+                      <Select value={archiveFilter} onValueChange={(v) => setArchiveFilter(v as typeof archiveFilter)}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="archived">Archived ({archivedCount})</SelectItem>
+                          <SelectItem value="all">All</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
               <Card>
                 <Table>
                   <TableHeader>
@@ -701,56 +805,126 @@ const ProjectDetail = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {surveys.map((survey) => (
+                    {surveys
+                      .filter((survey) => {
+                        if (archiveFilter === 'all') return true;
+                        if (archiveFilter === 'archived') return !!survey.archived_at;
+                        return !survey.archived_at;
+                      })
+                      .map((survey) => {
+                      const sourceName = survey.copied_from
+                        ? surveys.find(s => s.id === survey.copied_from)?.display_name
+                        : null;
+                      const legalNext = LEGAL_TRANSITIONS[survey.status] ?? [];
+
+                      return (
                       <TableRow key={survey.id}>
                         <TableCell className="font-medium">
                           <div className="flex flex-col">
                             <span>{survey.display_name}</span>
                             <span className="text-xs text-muted-foreground">{survey.name}</span>
+                            {sourceName && (
+                              <span className="text-xs text-muted-foreground">Copied from {sourceName}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
                           {new Date(survey.version_date).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={survey.status === 'active' ? 'default' : 'secondary'}>
-                            {survey.status}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge className={STATUS_BADGE_CLASS[survey.status]}>
+                              {STATUS_LABEL[survey.status]}
+                            </Badge>
+                            {survey.archived_at && (
+                              <Badge variant="outline" className={ARCHIVED_BADGE_CLASS}>
+                                Archived
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             {canEdit && (
-                              <Button variant="ghost" size="icon" onClick={() => navigate(`/app/projects/${project.slug}/surveys/${survey.id}`)}>
-                                <Edit2 className="h-4 w-4" />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title={isSurveyDeletable(survey.status) ? "Edit" : "View"}
+                                onClick={() => navigate(`/app/projects/${project.slug}/surveys/${survey.id}`)}
+                              >
+                                {isSurveyDeletable(survey.status) ? <Edit2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                               </Button>
                             )}
                             <Button
                               variant="ghost"
                               size="icon"
+                              title="Download"
                               onClick={() => handleDownloadSurvey(survey.zip_file_path, `${survey.name}.zip`)}
                             >
                               <Download className="h-4 w-4" />
                             </Button>
                             {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => {
-                                  setSurveyToDelete(survey);
-                                  setDeleteConfirmation("");
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" title="More actions">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setSurveyToDuplicate(survey)}>
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  {legalNext.length > 0 && <DropdownMenuSeparator />}
+                                  {legalNext.map((next) => (
+                                    <DropdownMenuItem
+                                      key={next}
+                                      onClick={() => setSurveyForTransition({ survey, next })}
+                                    >
+                                      Move to {STATUS_LABEL[next]}
+                                    </DropdownMenuItem>
+                                  ))}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleArchiveClick(survey)}>
+                                    {survey.archived_at ? (
+                                      <>
+                                        <ArchiveRestore className="h-4 w-4 mr-2" />
+                                        Unarchive
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Archive className="h-4 w-4 mr-2" />
+                                        Archive
+                                      </>
+                                    )}
+                                  </DropdownMenuItem>
+                                  {isSurveyDeletable(survey.status) && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => {
+                                          setSurveyToDelete(survey);
+                                          setDeleteConfirmation("");
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Card>
+              </>
             )}
           </TabsContent>
 
@@ -828,6 +1002,86 @@ const ProjectDetail = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Status transition confirmation */}
+        <AlertDialog open={!!surveyForTransition} onOpenChange={(open) => !open && setSurveyForTransition(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Move "{surveyForTransition?.survey.display_name}" to {surveyForTransition ? STATUS_LABEL[surveyForTransition.next] : ''}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {surveyForTransition?.next === 'deployed' && (
+                  <>
+                    Deploying locks this survey -- its questions can never be changed again. To
+                    make changes later you will duplicate it under a new Survey ID. Phones will
+                    download it at their next login.
+                    {surveyForTransition.survey.status === 'draft' && (
+                      <> This survey has not been through Test.</>
+                    )}
+                  </>
+                )}
+                {surveyForTransition?.next === 'complete' && (
+                  <>Phones will stop downloading this survey. Its data is retained and it can be moved back to Deployed later if collection needs to reopen.</>
+                )}
+                {surveyForTransition?.next === 'draft' && (
+                  <>This makes the survey editable again.</>
+                )}
+                {surveyForTransition?.next === 'test' && (
+                  <>This survey will become downloadable to phones, marked as a test package.</>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => surveyForTransition && handleTransitionStatus(surveyForTransition.survey, surveyForTransition.next)}
+              >
+                Confirm
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Archive-while-deployed warning */}
+        <AlertDialog open={!!archiveWarningSurvey} onOpenChange={(open) => !open && setArchiveWarningSurvey(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive a deployed survey?</AlertDialogTitle>
+              <AlertDialogDescription>
+                "{archiveWarningSurvey?.display_name}" is still deployed. Archiving only hides it
+                from this list -- phones will keep downloading it. If you want to stop collection,
+                move it to Complete instead (from the row menu).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (archiveWarningSurvey) handleToggleArchived(archiveWarningSurvey);
+                  setArchiveWarningSurvey(null);
+                }}
+              >
+                Archive anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {surveyToDuplicate && project && (
+          <DuplicateSurveyDialog
+            open={!!surveyToDuplicate}
+            onOpenChange={(open) => !open && setSurveyToDuplicate(null)}
+            source={{
+              id: surveyToDuplicate.id,
+              surveyId: surveyToDuplicate.name,
+              displayName: surveyToDuplicate.display_name,
+            }}
+            projectId={project.id}
+            userId={user?.id}
+            projectSlug={project.slug}
+          />
+        )}
       </div >
     </AppLayout >
   );
