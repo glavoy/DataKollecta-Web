@@ -91,8 +91,15 @@ export const surveyService = {
       .upsert({
         id: pkg.id, // Use existing ID if updating, or new UUID if creating
         project_id: projectId,
-        name: pkg.surveyId, // Use pkg.surveyId for the name column
-        display_name: pkg.name, // Use pkg.name for the display_name column
+        // The surveyName/surveyDisplayName PARAMETERS, not pkg.surveyId/pkg.name
+        // directly -- the caller (SurveyDesigner.handleSaveToProject) computes a
+        // fallback from the display name when pkg.surveyId is blank, specifically
+        // so a survey can never be published with an empty Survey ID. Reading
+        // pkg.surveyId/pkg.name here instead silently discarded that fallback and
+        // let a blank id/name reach the database untouched -- which is exactly
+        // how one already-deployed survey ended up with name = ''.
+        name: surveyName,
+        display_name: surveyDisplayName,
         version_date: new Date().toISOString().split('T')[0],
         description: null, // Optional description field
         manifest: JSON.parse(manifestJson),
