@@ -31,15 +31,20 @@ serve(async (req) => {
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
         );
 
-        // 1. Find project by slug. Only 'active' projects log in -- a
-        // paused project gets the SAME generic "Project not found" below,
-        // deliberately: distinguishing "paused" from "doesn't exist" would
-        // let an unauthenticated caller enumerate valid project codes.
+        // 1. Find project by slug. Only 'active' AND unarchived projects log
+        // in -- archiving a project now blocks field access exactly like
+        // pausing does (they're the same "field access denied" outcome; the
+        // only difference is what governs it and whether it shows in the
+        // owner's default project list). A paused/archived project gets the
+        // SAME generic "Project not found" below, deliberately:
+        // distinguishing "blocked" from "doesn't exist" would let an
+        // unauthenticated caller enumerate valid project codes.
         const { data: project, error: projectError } = await supabase
             .from("projects")
             .select("id, name, slug")
             .eq("slug", project_code.toLowerCase().trim())
             .eq("status", "active")
+            .is("archived_at", null)
             .single();
 
         if (projectError || !project) {

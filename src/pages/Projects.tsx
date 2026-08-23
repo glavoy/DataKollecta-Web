@@ -24,6 +24,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +54,7 @@ interface Project {
   surveysCount?: number;
   submissionsCount?: number;
   membersCount?: number;
+  hasDeployedSurveys?: boolean;
   role: string;
 }
 
@@ -54,6 +65,7 @@ const Projects = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [archiveWarningProject, setArchiveWarningProject] = useState<Project | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -121,11 +133,20 @@ const Projects = () => {
             .select('*', { count: 'exact', head: true })
             .eq('project_id', project.id);
 
+          // Whether archiving/pausing this project would actually cut off
+          // live field collection -- gates the confirmation warning below.
+          const { count: deployedCount } = await supabase
+            .from('survey_packages')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', project.id)
+            .eq('status', 'deployed');
+
           return {
             ...project,
             surveysCount: surveysCount || 0,
             submissionsCount: submissionsCount || 0,
             membersCount: membersCount || 0,
+            hasDeployedSurveys: (deployedCount || 0) > 0,
             role: roleByProjectId.get(project.id) ?? 'member',
           };
         })
@@ -235,14 +256,18 @@ const Projects = () => {
     }
   };
 
-  const handleToggleArchived = async (project: Project) => {
+  const applyArchiveChange = async (project: Project, archived: boolean) => {
     try {
-      await projectService.setProjectArchived(project.id, !project.archived_at);
+      await projectService.setProjectArchived(project.id, archived);
       toast({
-        title: project.archived_at ? "Project unarchived" : "Project archived",
-        description: project.archived_at
-          ? `"${project.name}" is back in the default list.`
-          : `"${project.name}" is hidden from the default list. Field access and data are unaffected.`,
+        title: archived ? "Project archived" : "Project unarchived",
+        description: archived
+          ? (project.status === 'active'
+              ? `"${project.name}" is hidden from the default list, and field access is now revoked.`
+              : `"${project.name}" is hidden from the default list.`)
+          : (project.status === 'active'
+              ? `"${project.name}" is back in the default list, and field access is restored.`
+              : `"${project.name}" is back in the default list.`),
       });
       fetchProjects();
     } catch (error: any) {
@@ -252,6 +277,15 @@ const Projects = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleToggleArchived = (project: Project) => {
+    const willArchive = !project.archived_at;
+    if (willArchive && project.status === 'active' && project.hasDeployedSurveys) {
+      setArchiveWarningProject(project);
+      return;
+    }
+    applyArchiveChange(project, willArchive);
   };
 
   const archivedCount = projects.filter(p => p.archived_at).length;
@@ -435,6 +469,34 @@ const Projects = () => {
         onSubmit={handleCreateProject}
         loading={creating}
       />
+
+      {/* Archive-with-deployed-surveys confirmation -- same reasoning as
+          the pause confirmation in ProjectSettings: archiving an Active
+          project now revokes field access exactly like pausing does. */}
+      <AlertDialog open={!!archiveWarningProject} onOpenChange={(open) => !open && setArchiveWarningProject(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive this project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{archiveWarningProject?.name}" has a deployed survey. Archiving blocks new logins
+              immediately, and any device already logged in loses access the next time it tries to
+              sync -- including mid-collection. It also disappears from your default project list.
+              Portal editing is unaffected, and unarchiving restores everything at once.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (archiveWarningProject) applyArchiveChange(archiveWarningProject, true);
+                setArchiveWarningProject(null);
+              }}
+            >
+              Archive anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };

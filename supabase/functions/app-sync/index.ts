@@ -26,11 +26,12 @@ serve(async (req) => {
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
         );
 
-        // Validate token, and pull the credential + project status needed
-        // for the live access checks below in the same round trip.
+        // Validate token, and pull the credential + project status/archived
+        // state needed for the live access checks below in the same round
+        // trip.
         const { data: session, error: sessionError } = await supabase
             .from("app_sessions")
-            .select("*, app_credentials(*), projects(status)")
+            .select("*, app_credentials(*), projects(status, archived_at)")
             .eq("token", token)
             .gt("expires_at", new Date().toISOString())
             .single();
@@ -43,14 +44,15 @@ serve(async (req) => {
         }
 
         // Cut off an already-authenticated device the moment its credential
-        // is disabled or its project is paused -- checked on every call, not
-        // just at login, so a 30-day token can't outlive either. Both return
-        // 401 (not 403/500) so the app's postSync() treats this exactly like
-        // an expired token -- stopping the sync run immediately -- instead
-        // of retrying it as an ordinary batch failure. archived_at is
-        // deliberately NOT checked here: archiving a project only hides it
-        // from the portal's default list, same as archived_at on
-        // survey_packages never gates downloads.
+        // is disabled, or its project is paused or archived -- checked on
+        // every call, not just at login, so a 30-day token can't outlive
+        // any of them. All return 401 (not 403/500) so the app's postSync()
+        // treats this exactly like an expired token -- stopping the sync
+        // run immediately -- instead of retrying it as an ordinary batch
+        // failure. Archiving a project now revokes field access exactly
+        // like pausing does (its only OTHER effect is hiding the project
+        // from the owner's default list) -- unlike archived_at on
+        // survey_packages, which never gates downloads.
         if (!session.app_credentials?.is_active) {
             return new Response(
                 JSON.stringify({ error: "This account has been disabled. Contact your project administrator." }),
@@ -58,7 +60,7 @@ serve(async (req) => {
             );
         }
 
-        if (session.projects?.status !== "active") {
+        if (session.projects?.status !== "active" || session.projects?.archived_at) {
             return new Response(
                 JSON.stringify({ error: "This project is paused. Contact your project administrator." }),
                 { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }

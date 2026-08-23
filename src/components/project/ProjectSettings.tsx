@@ -69,6 +69,7 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
   const [status, setStatus] = useState<ProjectStatus>(project.status);
   const [statusSaving, setStatusSaving] = useState(false);
   const [pauseWarningOpen, setPauseWarningOpen] = useState(false);
+  const [archiveWarningOpen, setArchiveWarningOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
   const isOwner = userRole === 'owner';
@@ -98,22 +99,28 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
 
   const handleStatusToggle = (checked: boolean) => {
     const next: ProjectStatus = checked ? 'active' : 'paused';
-    if (next === 'paused' && hasDeployedSurveys) {
+    // Already-archived projects have no field access to lose -- pausing
+    // one is a no-op on the ground, so skip the confirmation.
+    if (next === 'paused' && hasDeployedSurveys && !project.archived_at) {
       setPauseWarningOpen(true);
       return;
     }
     applyStatusChange(next);
   };
 
-  const handleToggleArchived = async () => {
+  const applyArchiveChange = async (archived: boolean) => {
     setArchiving(true);
     try {
-      await projectService.setProjectArchived(project.id, !project.archived_at);
+      await projectService.setProjectArchived(project.id, archived);
       toast({
-        title: project.archived_at ? "Project unarchived" : "Project archived",
-        description: project.archived_at
-          ? undefined
-          : "Hidden from your default project list. Field access and data are unaffected.",
+        title: archived ? "Project archived" : "Project unarchived",
+        description: archived
+          ? (status === 'active'
+              ? "Hidden from your default project list, and field access is now revoked."
+              : "Hidden from your default project list.")
+          : (status === 'active'
+              ? "Back in your default project list, and field access is restored."
+              : "Back in your default project list."),
       });
       onProjectUpdate();
     } catch (error: any) {
@@ -125,6 +132,18 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
     } finally {
       setArchiving(false);
     }
+  };
+
+  const handleArchiveClick = () => {
+    const willArchive = !project.archived_at;
+    // Only archiving (not unarchiving) can remove access, and only when the
+    // project is currently Active with something field workers could
+    // actually be collecting against.
+    if (willArchive && status === 'active' && hasDeployedSurveys) {
+      setArchiveWarningOpen(true);
+      return;
+    }
+    applyArchiveChange(willArchive);
   };
 
   const handleSave = async () => {
@@ -360,6 +379,12 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
             <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
               <p className="font-medium text-foreground mb-1">What does this mean?</p>
               <p>{STATUS_DESCRIPTION[status]}</p>
+              {project.archived_at && status === 'active' && (
+                <p className="mt-1 text-foreground">
+                  This project is currently archived, so field access is blocked regardless --
+                  unarchive below to actually restore it.
+                </p>
+              )}
             </div>
           </div>
 
@@ -370,12 +395,12 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
               <p className="font-medium">{project.archived_at ? 'Archived' : 'Archive project'}</p>
               <p className="text-sm text-muted-foreground">
                 {project.archived_at
-                  ? 'Hidden from your default project list. Field access and data are unaffected.'
-                  : 'Hides this project from your default list. Does not affect field access or data -- unarchive anytime.'}
+                  ? 'Hidden from your default project list, and field access stays revoked until you unarchive.'
+                  : 'Hides this project from your default list and revokes field access (same as pausing) -- unarchive anytime to restore exactly as it was.'}
               </p>
             </div>
             {isOwner && (
-              <Button variant="outline" onClick={handleToggleArchived} disabled={archiving}>
+              <Button variant="outline" onClick={handleArchiveClick} disabled={archiving}>
                 {archiving ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : project.archived_at ? (
@@ -390,9 +415,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
         </CardContent>
       </Card>
 
-      {/* Pause-with-deployed-surveys confirmation -- the one action here
-          that can interrupt live field collection, so it gets its own
-          confirmation unlike Archive below, which never affects access. */}
+      {/* Pause-with-deployed-surveys confirmation, and the equivalent for
+          Archive right below it -- both can interrupt live field
+          collection now that archiving revokes access the same way pausing
+          does, so both get the same style of confirmation. */}
       <AlertDialog open={pauseWarningOpen} onOpenChange={setPauseWarningOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -409,6 +435,28 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
               onClick={() => { setPauseWarningOpen(false); applyStatusChange('paused'); }}
             >
               Pause anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={archiveWarningOpen} onOpenChange={setArchiveWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive this project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This project has a deployed survey. Archiving blocks new logins immediately, and any
+              device already logged in loses access the next time it tries to sync -- including
+              mid-collection. It also disappears from your default project list. Portal editing is
+              unaffected, and unarchiving restores everything at once.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setArchiveWarningOpen(false); applyArchiveChange(true); }}
+            >
+              Archive anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
