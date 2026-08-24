@@ -507,9 +507,13 @@ const ProjectDetail = () => {
       const sanitizedSurveyId = surveyId.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
       const filePath = `${project.id}/${sanitizedSurveyId}.zip`;
 
+      // upsert: true so a retry after a failed insert (DB error, crf error,
+      // etc.) overwrites the orphaned object from the earlier attempt
+      // instead of failing with "resource already exists" and leaving the
+      // upload permanently stuck.
       const { error: storageError } = await supabase.storage
         .from('surveys')
-        .upload(filePath, uploadFile);
+        .upload(filePath, uploadFile, { upsert: true });
 
       if (storageError) throw storageError;
 
@@ -771,7 +775,7 @@ const ProjectDetail = () => {
                           </Button>
                           <Button type="submit" disabled={uploading || !uploadFile}>
                             {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Upload & Publish
+                            Upload
                           </Button>
                         </DialogFooter>
                       </form>
