@@ -198,8 +198,19 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
     setDeleting(true);
     try {
       // Delete in order: formchanges → submissions → survey_packages (storage
-      // only, see step 4) → app_sessions → app_credentials → project_members
-      // → projects.
+      // only, see step 4) → app_sessions → app_credentials → projects.
+      //
+      // project_members is deliberately NOT deleted explicitly, unlike the
+      // others -- the "Owners can delete projects" RLS policy requires the
+      // caller to hold an 'owner' row in project_members FOR THIS PROJECT.
+      // Deleting that row first (as this used to do) makes the final
+      // `projects` delete below match zero rows under RLS -- which
+      // PostgREST reports as success, not an error, so the UI shows
+      // "Project deleted" while the row silently survives (confirmed live:
+      // 2026-08-24, a project whose project_members row was gone but whose
+      // projects row was still there, blocking recreation with the same
+      // code). project_members cascades from the `projects` delete instead,
+      // by which point RLS has already been satisfied.
       //
       // crfs and survey_packages rows are deliberately NOT deleted here --
       // they cascade from the `projects` delete at the end. That is a
@@ -254,18 +265,26 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
       // 5. Delete app credentials
       await supabase.from('app_credentials').delete().eq('project_id', project.id);
 
-      // 6. Delete project members
-      await supabase.from('project_members').delete().eq('project_id', project.id);
-
-      // 7. Delete the project -- cascades to survey_packages, then from
-      // there to crfs (both ON DELETE CASCADE), which is what lets this
-      // succeed even when the project contains a locked survey.
-      const { error } = await supabase
+      // 6. Delete the project -- cascades to project_members, survey_packages
+      // (then from there to crfs), app_sessions and app_credentials (all
+      // ON DELETE CASCADE), which is what lets this succeed even when the
+      // project contains a locked survey.
+      //
+      // count: 'exact' so a zero-row delete under RLS (e.g. the caller
+      // isn't actually an 'owner' row for this project) surfaces as an
+      // error instead of a false-success toast -- see the note above this
+      // block for exactly how that happened before.
+      const { error, count } = await supabase
         .from('projects')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', project.id);
 
       if (error) throw error;
+      if (!count) {
+        throw new Error(
+          "The project wasn't deleted -- you may no longer have owner access to it."
+        );
+      }
 
       toast({
         title: "Project deleted",
