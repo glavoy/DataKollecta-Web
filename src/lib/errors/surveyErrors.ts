@@ -177,6 +177,17 @@ export function translateSurveyWriteError(err: unknown): string | null {
         `one, so it cannot be a version of this survey.`
       );
     }
+    if (marker === 'sp_database_in_use_elsewhere') {
+      // Deliberately says nothing about the other survey -- it belongs to a
+      // different account, and the trigger withholds its identity for that
+      // reason. See the survey_database_name_global migration.
+      return (
+        `That database name is already in use by another survey. Database names must be ` +
+        `unique across the whole platform: a phone keeps every survey it holds in one ` +
+        `folder named by this value, so two surveys sharing a name would write into the ` +
+        `same file. Choose a more specific database name.`
+      );
+    }
     if (marker === 'sp_database_in_use') {
       return (
         `Another survey in this project already uses this database name. Two different ` +

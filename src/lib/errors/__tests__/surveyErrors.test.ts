@@ -103,6 +103,20 @@ describe('translateSurveyWriteError', () => {
     expect(msg).toMatch(/version of the survey/i);
   });
 
+  it('explains a database name taken by another account without leaking it', () => {
+    const msg = translateSurveyWriteError({
+      code: '23514',
+      hint: 'sp_database_in_use_elsewhere',
+      message: 'Database name "household.sqlite" is already in use.',
+      details: 'database_name=household.sqlite incoming_code=bob',
+    });
+    expect(msg).toMatch(/unique across the whole platform/i);
+    // Says nothing about whose survey it is -- the trigger withholds that on
+    // purpose, and the message must not reintroduce it.
+    expect(msg).not.toMatch(/project/i);
+    expect(msg).not.toMatch(/used by survey/i);
+  });
+
   it('translates the delete-locked check violation via hint', () => {
     const msg = translateSurveyWriteError({
       code: '23514',

@@ -100,9 +100,11 @@ Real tables, in the order data actually flows through them:
   version (`PRISM CSS v2`) because it is written into the manifest as
   `surveyName`, which is what the **app** lists and what it stores as the
   active survey — two versions sharing that name would be indistinguishable on
-  the phone. `databaseName` is unique per survey across the whole account, not
-  just per project, because a device can hold several projects at once and
-  opens one SQLite file per `databaseName`. Versions are locked and un-locked
+  the phone. `databaseName` is unique per survey **platform-wide** — not per
+  project, not per account — because the app keeps every survey it holds in
+  one flat `databases/` folder named by that value, with no project or account
+  segment in the path, and a field worker can belong to projects owned by
+  different accounts. Versions are locked and un-locked
   independently, and several versions of one survey may be `deployed` at once,
   which is how teams on different timelines run different versions.
 - **`crfs`** — one row per form within a survey package, describing its fields,
