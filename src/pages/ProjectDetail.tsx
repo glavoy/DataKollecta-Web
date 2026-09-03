@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
@@ -80,6 +79,7 @@ import ProjectData from "@/components/project/ProjectData";
 import ProjectMembers from "@/components/project/ProjectMembers";
 import ProjectFieldTeam from "@/components/project/ProjectFieldTeam";
 import ProjectSettings from "@/components/project/ProjectSettings";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface Project {
   id: string;
@@ -271,7 +271,7 @@ const ProjectDetail = () => {
         membersCount: membersCount || 0,
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching project data:', error);
       toast({
         title: "Error",
@@ -313,7 +313,7 @@ const ProjectDetail = () => {
         description: "Your survey package is downloading.",
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Download error:", error);
       toast({
         title: "Download Failed",
@@ -419,11 +419,11 @@ const ProjectDetail = () => {
       setSurveyForTransition(null);
       setRetireSiblingOnDeploy(false);
       fetchProjectData();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Status update error:", error);
       toast({
         title: "Could not update status",
-        description: translateSurveyWriteError(error) ?? error.message ?? "An unexpected error occurred.",
+        description: translateSurveyWriteError(error) ?? getErrorMessage(error, "An unexpected error occurred."),
         variant: "destructive",
       });
     }
@@ -447,11 +447,11 @@ const ProjectDetail = () => {
           : `"${survey.display_name}" is hidden from the default list. Data, downloads, and Duplicate are unaffected.`,
       });
       fetchProjectData();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Archive toggle error:", error);
       toast({
         title: "Could not update",
-        description: error.message || "An unexpected error occurred.",
+        description: getErrorMessage(error, "An unexpected error occurred."),
         variant: "destructive",
       });
     }
@@ -548,7 +548,7 @@ const ProjectDetail = () => {
       setSurveyToDelete(null);
       setDeleteConfirmation("");
       fetchProjectData();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Delete error:", error);
       toast({
         title: "Error",
@@ -579,7 +579,6 @@ const ProjectDetail = () => {
         throw new Error("Invalid ZIP: survey_manifest.gistx is missing.");
       }
 
-      // @ts-ignore
       const manifestContent = await manifestFile.async("string");
       const manifest = JSON.parse(manifestContent);
 
@@ -907,7 +906,6 @@ const ProjectDetail = () => {
               project={project}
               stats={stats}
               onTabChange={handleTabChange}
-              onOpenUploadDialog={() => setIsUploadOpen(true)}
             />
           </TabsContent>
 
@@ -1219,7 +1217,7 @@ const ProjectDetail = () => {
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <ProjectData projectId={project.id} projectName={project.name} />
+            <ProjectData projectId={project.id} />
           </TabsContent>
 
           {/* Members Tab */}

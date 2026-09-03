@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import CreateProjectDialog from "@/components/projects/CreateProjectDialog";
 import { projectService } from "@/services/projectService";
 import { ProjectStatus, STATUS_LABEL, STATUS_BADGE_CLASS, ARCHIVED_BADGE_CLASS } from "@/lib/projectStatus";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface Project {
   id: string;
@@ -153,7 +154,7 @@ const Projects = () => {
       );
 
       setProjects(projectsWithStats);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error in fetchProjects:', error);
       toast({
         title: "Error",
@@ -215,10 +216,10 @@ const Projects = () => {
 
       setCreateDialogOpen(false);
       fetchProjects(); // Refresh the list
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating project:", error);
 
-      let errorMessage = error.message || "Failed to create project";
+      let errorMessage = getErrorMessage(error, "Failed to create project");
 
       // Handle unique constraint violations
       if (error.code === '23505') { // unique_violation
@@ -270,10 +271,10 @@ const Projects = () => {
               : `"${project.name}" is back in the default list.`),
       });
       fetchProjects();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update.",
+        description: getErrorMessage(error, "Failed to update."),
         variant: "destructive",
       });
     }

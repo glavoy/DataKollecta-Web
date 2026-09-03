@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -19,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Search,
   Download,
   Database,
   Eye,
@@ -38,12 +36,21 @@ import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 import { buildCsv } from "@/lib/csv";
 import { groupByLineage, versionByPackageId } from "@/lib/surveyVersion";
 import { useToast } from "@/hooks/use-toast";
+import type { FormChange } from "@/services/submissionService";
+
+/** A question as it arrives from the parsed survey manifest. */
+interface FormField {
+  fieldname?: string;
+  id?: string;
+  type?: string;
+  text?: string;
+}
 
 interface FormWithCount {
   id: string;
   table_name: string;
   display_name: string;
-  fields: any[];
+  fields: FormField[];
   recordCount: number;
   /** Every version of this survey that could hold rows for this form.
       Versions of one survey deliberately SHARE a table_name -- that is what
@@ -69,7 +76,7 @@ interface SurveyWithForms {
 interface Submission {
   id: string;
   local_unique_id: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   surveyor_id: string;
   collected_at: string;
   submitted_at: string;
@@ -78,10 +85,9 @@ interface Submission {
 
 interface ProjectDataProps {
   projectId: string;
-  projectName: string;
 }
 
-const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
+const ProjectData = ({ projectId }: ProjectDataProps) => {
   const { toast } = useToast();
   const [selectedForm, setSelectedForm] = useState<FormWithCount | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -203,13 +209,13 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
       return [];
     }
 
-    const visibleFields = selectedForm.fields.filter((field: any) => {
+    const visibleFields = selectedForm.fields.filter((field) => {
       const type = field.type?.toLowerCase();
       if (type === 'information') return false;
       return true;
     });
 
-    return visibleFields.slice(0, 6).map((field: any) => ({
+    return visibleFields.slice(0, 6).map((field) => ({
       key: field.fieldname || field.id,
       label: field.text?.substring(0, 50) || field.fieldname || 'Unknown',
       fieldname: field.fieldname,
@@ -237,7 +243,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
    * blank cell is ambiguous between "not asked in that version" and "asked
    * and skipped".
    */
-  const generateCSV = (submissions: any[], versionByPackage: Record<string, number>): string => {
+  const generateCSV = (submissions: Submission[], versionByPackage: Record<string, number>): string => {
     if (!submissions || submissions.length === 0) return '';
 
     // Get all unique field names, sorted for a deterministic column order
@@ -263,7 +269,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     return buildCsv(headers, rows);
   };
 
-  const generateFormChangesCSV = (formchanges: any[]): string => {
+  const generateFormChangesCSV = (formchanges: FormChange[]): string => {
     if (!formchanges || formchanges.length === 0) return '';
 
     const headers = ['formchanges_uuid', 'record_uuid', 'tablename', 'fieldname', 'oldvalue', 'newvalue', 'surveyor_id', 'changed_at'];
@@ -395,7 +401,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     // Removed searchTerm clear and scroll since search is gone and we use a dialog
   };
 
-  const getFieldValue = (data: Record<string, any>, fieldname: string) => {
+  const getFieldValue = (data: Record<string, unknown>, fieldname: string) => {
     const value = data?.[fieldname];
     if (value === null || value === undefined) return '-';
     const str = String(value);

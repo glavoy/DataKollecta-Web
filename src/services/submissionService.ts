@@ -5,7 +5,7 @@ export interface Submission {
   id: string; // The database ID (UUID)
   table_name: string;
   local_unique_id: string; // The mobile app's UUID
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   surveyor_id: string;
   collected_at: string;
   updated_at: string;
@@ -57,7 +57,10 @@ export const submissionService = {
     }
 
     // Map the result to flatten the survey name
-    return data.map((item: any) => ({
+    type JoinedRow = Omit<Submission, "survey_name"> & {
+      survey_packages?: { name?: string } | null;
+    };
+    return (data as JoinedRow[]).map((item) => ({
       ...item,
       survey_name: item.survey_packages?.name || "Unknown Survey",
     }));

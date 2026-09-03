@@ -15,11 +15,15 @@
     "jsx": "react-jsx",
 
     /* Linting */
+    /* `strict` and `noImplicitAny` are still off -- turning them on is its
+       own piece of work, tracked separately. The unused-code checks below are
+       on, because nothing flagged the 25 unused shadcn components or the
+       dependencies that came with them. */
     "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitAny": false,
-    "noFallthroughCasesInSwitch": false,
+    "noFallthroughCasesInSwitch": true,
 
     "paths": {
       "@/*": ["./src/*"]

@@ -32,6 +32,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchAllRows } from "@/lib/supabasePaging";
 import { projectService } from "@/services/projectService";
 import { ProjectStatus, STATUS_LABEL, STATUS_DESCRIPTION, STATUS_BADGE_CLASS } from "@/lib/projectStatus";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface ProjectSettingsProps {
   project: {
@@ -86,10 +87,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
           : "Field access restored -- devices can log in and sync again.",
       });
       onProjectUpdate();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update status.",
+        description: getErrorMessage(error, "Failed to update status."),
         variant: "destructive",
       });
     } finally {
@@ -123,10 +124,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
               : "Back in your default project list."),
       });
       onProjectUpdate();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update.",
+        description: getErrorMessage(error, "Failed to update."),
         variant: "destructive",
       });
     } finally {
@@ -174,10 +175,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
         description: "Project settings have been updated.",
       });
       onProjectUpdate();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to save settings.",
+        description: getErrorMessage(error, "Failed to save settings."),
         variant: "destructive",
       });
     } finally {
@@ -292,10 +293,10 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
       });
 
       navigate('/app/projects');
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete project.",
+        description: getErrorMessage(error, "Failed to delete project."),
         variant: "destructive",
       });
     } finally {

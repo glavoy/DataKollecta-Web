@@ -22,7 +22,14 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-unused-vars": "off",
+      // Back on. With this off, nothing flagged the 25 unused shadcn/ui
+      // components or the ~20 dependencies that came with them.
+      // `argsIgnorePattern` keeps deliberately-unused callback parameters
+      // (`(_, index) =>`) from becoming noise.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" },
+      ],
     },
   },
 );

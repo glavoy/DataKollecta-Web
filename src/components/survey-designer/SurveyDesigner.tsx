@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom"; // Added Link
 import { SurveyPackage, SurveyForm, SurveyQuestion, QuestionType } from "@/types/survey";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,6 +75,7 @@ import { surveyDraftKey, readDraft, clearDraft, evaluateDraft, type SurveyDraft 
 import { SurveyStatus, isSurveyLocked, isLegalTransition, STATUS_LABEL } from "@/lib/surveyStatus";
 import { translateSurveyWriteError } from "@/lib/errors/surveyErrors";
 import DuplicateSurveyDialog from "./DuplicateSurveyDialog";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 // Get default field type based on question type
 const getDefaultFieldType = (type: QuestionType): SurveyQuestion['fieldtype'] => {
@@ -383,11 +383,11 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         title: "Success",
         description: `Survey package ${status === 'deployed' ? 'deployed' : 'saved'} successfully.`,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving survey:', error);
       toast({
         title: "Error saving survey",
-        description: translateSurveyWriteError(error) ?? error.message ?? "An unexpected error occurred.",
+        description: translateSurveyWriteError(error) ?? getErrorMessage(error, "An unexpected error occurred."),
         variant: "destructive",
       });
     } finally {

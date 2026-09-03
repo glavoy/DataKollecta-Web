@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { SurveyPackage, CsvFile } from "@/types/survey";
+import { SurveyPackage, CsvFile, IdConfig } from "@/types/survey";
 import { generateManifestGistx } from "@/lib/xml/manifest";
 import { buildSurveyZip } from "@/lib/xml/package";
 import { normalizeStoredQuestions } from "@/lib/xml/normalize";
@@ -331,7 +331,11 @@ export const surveyService = {
     }
 
     // 4. Construct the SurveyPackage object
-    const manifest = survey.manifest as any;
+    const manifest = survey.manifest as {
+      databaseName?: string;
+      xmlFiles?: string[];
+      crfs?: unknown[];
+    } | null;
     const pkg: SurveyPackage = {
       id: survey.id,
       surveyId: survey.name, // The logical ID
@@ -341,7 +345,22 @@ export const surveyService = {
       csvFiles: csvFiles,
       forms: (crfs || []).map(crf => {
         // Extract additional form config from idconfig._formConfig if stored there
-        const idConfig = crf.id_config as any;
+        // JSONB again. `_formConfig` is this portal's own addition to the
+        // idconfig object -- the app never reads it -- and is stripped below
+        // before the config goes back out.
+        // The stored idconfig is an IdConfig plus `_formConfig`, this
+        // portal's own extension -- the app never reads that key, and it is
+        // stripped again below. Only these four fields are read off it.
+        const idConfig = crf.id_config as
+          | (Partial<IdConfig> & {
+              _formConfig?: {
+                endOfQuestionsText?: string;
+                incrementField?: string;
+                repeatCountField?: string;
+                entry_condition?: string;
+              };
+            })
+          | null;
         const formConfig = idConfig?._formConfig || {};
 
         // Clean idconfig by removing _formConfig before returning
@@ -370,8 +389,9 @@ export const surveyService = {
           parenttable: normalizeEmpty(crf.parent_table),
           linkingfield: normalizeEmpty(crf.linking_field),
           displayFields: normalizeEmpty(crf.display_fields),
-          idconfig: cleanIdConfig?.prefix !== undefined || cleanIdConfig?.fields?.length > 0
-            ? cleanIdConfig
+          idconfig: cleanIdConfig?.prefix !== undefined ||
+                    (cleanIdConfig?.fields?.length ?? 0) > 0
+            ? (cleanIdConfig as IdConfig)
             : undefined,
           questions: normalized.questions,
           // _formConfig is the explicit setting; a recovered end-screen

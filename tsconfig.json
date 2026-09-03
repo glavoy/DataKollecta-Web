@@ -1,15 +1,16 @@
 {
+  /* A solution file: `files: []` means these compilerOptions compile nothing.
+     They used to restate -- and contradict -- the real settings in
+     tsconfig.app.json, which is where the compiler actually reads them from
+     (`noUnusedLocals` is true there, false here). Editors that resolve a file
+     through this config saw the looser set, so the two disagreed about the
+     same source. Only `paths` is kept, since a stray editor lookup still
+     benefits from resolving the @/ alias. */
   "files": [],
   "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
+    }
   }
 }

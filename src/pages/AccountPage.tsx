@@ -15,6 +15,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+
+/** One row of the project_members + projects join this page reads. */
+interface ProjectMembership {
+  project_id: string;
+  role: string;
+  projects?: { id: string; name: string; slug: string } | null;
+}
 
 const AccountPage = () => {
   const { user, profile, updateProfile } = useAuth();
@@ -35,20 +43,23 @@ const AccountPage = () => {
   }, [profile?.full_name]);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Fetch user's projects
   const { data: projects } = useQuery({
     queryKey: ["userProjects", user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectMembership[]> => {
       if (!user) return [];
       const { data: memberships } = await supabase
         .from('project_members')
         .select('project_id, role, projects(id, name, slug)')
         .eq('user_id', user.id);
-      return memberships || [];
+      // Supabase types an embedded relation as an array even when the
+      // foreign key is to-one, so the generated type and the runtime shape
+      // disagree here. The rows really are single objects -- the markup below
+      // has always read `membership.projects?.name` directly.
+      return ((memberships as unknown) as ProjectMembership[] | null) || [];
     },
     enabled: !!user,
   });
@@ -64,10 +75,10 @@ const AccountPage = () => {
         title: "Profile updated",
         description: "Your profile has been saved successfully.",
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update profile.",
+        description: getErrorMessage(error, "Failed to update profile."),
         variant: "destructive",
       });
     } finally {
@@ -108,13 +119,12 @@ const AccountPage = () => {
         title: "Password changed",
         description: "Your password has been updated successfully.",
       });
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to change password.",
+        description: getErrorMessage(error, "Failed to change password."),
         variant: "destructive",
       });
     } finally {
@@ -185,7 +195,7 @@ const AccountPage = () => {
           <CardContent>
             {projects && projects.length > 0 ? (
               <div className="space-y-3">
-                {projects.map((membership: any) => (
+                {projects.map((membership) => (
                   <div
                     key={membership.project_id}
                     className="flex items-center justify-between p-3 border rounded-lg"

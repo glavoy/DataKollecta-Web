@@ -29,7 +29,6 @@ interface ProjectOverviewProps {
     membersCount: number;
   };
   onTabChange: (tab: string) => void;
-  onOpenUploadDialog: () => void;
 }
 
 /** One survey and its record count, merged across every version. */
@@ -42,7 +41,7 @@ interface SurveyStats {
   recordCount: number;
 }
 
-const ProjectOverview = ({ project, stats, onTabChange, onOpenUploadDialog }: ProjectOverviewProps) => {
+const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) => {
   const navigate = useNavigate();
 
   // Fetch survey-level stats for Data Collection Summary

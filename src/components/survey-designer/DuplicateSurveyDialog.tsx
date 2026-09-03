@@ -8,6 +8,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { surveyService } from "@/services/surveyService";
 import { findSurveyIdConflict, surveyIdConflictMessage, translateSurveyWriteError } from "@/lib/errors/surveyErrors";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface DuplicateSurveyDialogProps {
   open: boolean;
@@ -107,10 +108,10 @@ const DuplicateSurveyDialog = ({ open, onOpenChange, source, projectId, userId, 
       if (projectSlug) {
         navigate(`/app/projects/${projectSlug}/surveys/${saved.id}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Could not duplicate survey",
-        description: translateSurveyWriteError(error) ?? error.message ?? "An unexpected error occurred.",
+        description: translateSurveyWriteError(error) ?? getErrorMessage(error, "An unexpected error occurred."),
         variant: "destructive",
       });
     } finally {

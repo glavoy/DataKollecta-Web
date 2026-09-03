@@ -102,7 +102,7 @@ const SurveyDesignerPage = () => {
           setSurveyVersion(1);
         }
 
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error initializing designer:', error);
         toast({
           title: "Error",

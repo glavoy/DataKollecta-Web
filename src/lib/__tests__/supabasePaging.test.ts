@@ -35,7 +35,7 @@ describe('fetchAllRows', () => {
 
   it('stops exactly at a page boundary without an extra empty-page request', async () => {
     // Exactly 1000 rows -- the page is full, but there is nothing left.
-    const buildQuery = vi.fn(async (from: number, to: number) => {
+    const buildQuery = vi.fn(async (from: number, _to: number) => {
       if (from > 0) return { data: [], error: null };
       return { data: Array.from({ length: 1000 }, (_, i) => i), error: null };
     });

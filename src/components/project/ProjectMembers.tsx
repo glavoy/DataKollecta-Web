@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +44,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Plus,
   MoreVertical,
-  Search,
   UserPlus,
   Loader2,
   Crown,
@@ -58,6 +56,7 @@ import { projectMemberService, ProjectMember, UserSearchResult } from "@/service
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface ProjectMembersProps {
   projectId: string;
@@ -109,10 +108,10 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
         onMemberChange();
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to add member.",
+        description: getErrorMessage(error, "Failed to add member."),
         variant: "destructive",
       });
     },
@@ -129,10 +128,10 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
       toast({ title: "Role updated", description: "Member role has been updated." });
       setMemberToEdit(null);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update role.",
+        description: getErrorMessage(error, "Failed to update role."),
         variant: "destructive",
       });
     },
@@ -155,10 +154,10 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
         onMemberChange();
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to remove member.",
+        description: getErrorMessage(error, "Failed to remove member."),
         variant: "destructive",
       });
     },
@@ -238,7 +237,9 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
     }
   };
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadgeVariant = (
+    role: string,
+  ): "default" | "secondary" | "outline" => {
     switch (role) {
       case 'owner': return 'default';
       case 'editor': return 'secondary';
@@ -320,7 +321,7 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getRoleBadgeVariant(member.role) as any} className="gap-1">
+                    <Badge variant={getRoleBadgeVariant(member.role)} className="gap-1">
                       {getRoleIcon(member.role)}
                       {member.role}
                     </Badge>

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Database, AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
@@ -19,7 +19,8 @@ const Login = () => {
   const [password, setPassword] = useState("");
 
   // Sign up state
-  const [isSignUp, setIsSignUp] = useState((location.state as any)?.isSignUp || false);
+  const routerState = location.state as { isSignUp?: boolean } | null;
+  const [isSignUp, setIsSignUp] = useState(routerState?.isSignUp ?? false);
   const [fullName, setFullName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 

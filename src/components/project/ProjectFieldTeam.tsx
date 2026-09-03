@@ -50,6 +50,7 @@ import {
 import { teamService, type FieldWorker } from "@/services/teamService";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -132,10 +133,10 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
       setNewPassword("");
       setNewDescription("");
       loadWorkers();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create credential.",
+        description: getErrorMessage(error, "Failed to create credential."),
         variant: "destructive",
       });
     } finally {
@@ -154,10 +155,10 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
       });
       setWorkerToDelete(null);
       loadWorkers();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to revoke credential.",
+        description: getErrorMessage(error, "Failed to revoke credential."),
         variant: "destructive",
       });
     }
@@ -171,10 +172,10 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
         description: `"${worker.username}" has been ${worker.is_active ? 'disabled' : 'enabled'}.`,
       });
       loadWorkers();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update credential status.",
+        description: getErrorMessage(error, "Failed to update credential status."),
         variant: "destructive",
       });
     }
@@ -211,7 +212,7 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
       });
       setWorkerToEdit(null);
       loadWorkers();
-    } catch (error: any) {
+    } catch (error) {
       // (project_id, username) is unique -- surface a real collision as a
       // real message instead of the raw Postgres constraint text.
       const isDuplicate = error?.code === '23505' || /duplicate key/i.test(error?.message || '');
@@ -219,7 +220,7 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
         title: "Error",
         description: isDuplicate
           ? `"${editUsername}" is already in use on this project.`
-          : error.message || "Failed to update credential.",
+          : getErrorMessage(error, "Failed to update credential."),
         variant: "destructive",
       });
     } finally {
