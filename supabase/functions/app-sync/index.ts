@@ -67,11 +67,20 @@ serve(async (req) => {
             );
         }
 
-        // Update session activity
-        await supabase
+        // Update session activity. Deliberately not fatal -- a failure here
+        // costs a "last seen" timestamp, not any collected data, so it must
+        // not stop a sync that is otherwise fine. Logged rather than dropped.
+        const { error: activityError } = await supabase
             .from("app_sessions")
             .update({ last_activity_at: new Date().toISOString() })
             .eq("id", session.id);
+
+        if (activityError) {
+            console.error(
+                `Failed to update last_activity_at for session ${session.id}:`,
+                activityError.message,
+            );
+        }
 
         // Process data
         const results = {
@@ -167,7 +176,20 @@ serve(async (req) => {
                                 fieldname: change.fieldname,
                                 oldvalue: change.oldvalue,
                                 newvalue: change.newvalue,
-                                surveyor_id: change.surveyor_id || session.app_credentials.username,
+                                // Server-derived, never the client's own
+                                // `change.surveyor_id`. This used to prefer
+                                // the client value, which gave the column two
+                                // possible meanings depending on whether the
+                                // device happened to populate it -- and left
+                                // `submissions.surveyor_id` (derived from the
+                                // session in the loop above) able to disagree
+                                // with `formchanges.surveyor_id` about the
+                                // same record. An audit column recording who
+                                // changed a value has to mean one thing.
+                                //
+                                // No effect on GiSTX, which FTPs the whole
+                                // SQLite file and never calls this function.
+                                surveyor_id: session.app_credentials.username,
                                 changed_at: change.changed_at,
                                 synced_at: new Date().toISOString(),
                             },

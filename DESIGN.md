@@ -118,6 +118,10 @@ Real tables, in the order data actually flows through them:
 - **`formchanges`** — the audit trail for edits made *after* a submission first
   synced (either a field correction made on the phone and re-synced, or an edit
   made directly on the website): old value, new value, who changed it, when.
+  `surveyor_id` is always taken from the authenticated session, never from the
+  synced payload — the same as `submissions.surveyor_id`. A device cannot
+  attribute an edit to another username, and the two tables cannot disagree
+  about who touched the same record.
 
 ### General flow
 

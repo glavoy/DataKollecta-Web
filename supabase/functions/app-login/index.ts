@@ -93,11 +93,23 @@ serve(async (req) => {
         // phone would see zero downloadable surveys with no error anywhere.
         // "active" is the pre-rename spelling of "deployed", kept so this
         // can ship ahead of (and survive) that migration.
-        const { data: surveys } = await supabase
+        const { data: surveys, error: surveysError } = await supabase
             .from("survey_packages")
             .select("id, name, display_name, version_date, zip_file_path, manifest, updated_at, status")
             .eq("project_id", project.id)
             .order("updated_at", { ascending: false });
+
+        // Still permissive -- login succeeds with zero surveys rather than
+        // failing outright, which is the point of the note above. But it is
+        // logged now: silently returning an empty survey list to every phone
+        // in a project, with no trace anywhere, is not a failure mode anyone
+        // would think to look for.
+        if (surveysError) {
+            console.error(
+                `Failed to list survey packages for project ${project.id}:`,
+                surveysError.message,
+            );
+        }
 
         const DOWNLOADABLE_STATUSES = new Set(["deployed", "active", "test"]);
         // archived_at is deliberately NOT consulted here -- archiving only
@@ -143,7 +155,11 @@ serve(async (req) => {
         const token = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-        await supabase.from("app_sessions").insert({
+        // Checked, not fire-and-forget. If this insert fails the function used
+        // to still return success with a token that can never validate, so the
+        // app logged in cleanly and then 401'd on every subsequent sync with
+        // nothing to explain why.
+        const { error: sessionError } = await supabase.from("app_sessions").insert({
             credential_id: credential.id,
             project_id: project.id,
             token: token,
@@ -151,6 +167,14 @@ serve(async (req) => {
             device_id: device_id || null,
             device_info: device_info || null,
         });
+
+        if (sessionError) {
+            console.error("Failed to create app session:", sessionError.message);
+            return new Response(
+                JSON.stringify({ error: "Internal server error" }),
+                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+        }
 
         // 8. Return success response
         return new Response(
