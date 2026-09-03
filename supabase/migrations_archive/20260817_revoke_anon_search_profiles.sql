@@ -1,6 +1,6 @@
 -- search_profiles_for_invite (added in 20260814_scope_profiles_visibility.sql)
 -- revoked EXECUTE from `public` but the live schema snapshot
--- (supabase/datakollecta.json, refreshed 2026-08-15) shows `anon` still
+-- (supabase/schema_snapshot_2026-08-15.json) shows `anon` still
 -- holding an explicit EXECUTE grant -- Supabase's SQL editor grants anon +
 -- authenticated + service_role by default when a function is created there,
 -- and `revoke ... from public` does not remove a role's own separate grant.

@@ -2,7 +2,8 @@
 
 These four files were written to document SQL that had already been run by hand
 through the Supabase SQL editor, against a schema that itself was built by hand
-(`schema.sql` was 0 bytes -- there was never a CLI-tracked baseline). Because they
+(there was never a CLI-tracked baseline: `schema.sql` existed but was 0 bytes, and
+has since been deleted). Because they
 are patches ("add this index", "alter this policy") rather than full definitions,
 replaying them against an empty database -- which `supabase db pull`/`db push` must
 do to compute a diff -- fails immediately: the very first one references a table
