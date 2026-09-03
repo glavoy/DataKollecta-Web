@@ -1,12 +1,32 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Kept in step with app-login/index.ts by hand. Each Edge Function is its own
+// deployment unit, so a dozen duplicated lines is preferable to introducing a
+// _shared module in a security change.
+//
+// Empty on purpose: nothing in the portal calls this function, and the Flutter
+// client is not a browser, so it sends no Origin. This used to answer every
+// origin with `*`. Note that CORS does not stop a request being made, only a
+// browser reading the response -- the token check below is what actually
+// authorises the call.
+const ALLOWED_ORIGINS: readonly string[] = [];
+
+function corsHeadersFor(req: Request): Record<string, string> {
+    const headers: Record<string, string> = {
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    };
+    const origin = req.headers.get("origin");
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        headers["Access-Control-Allow-Origin"] = origin;
+        headers["Vary"] = "Origin";
+    }
+    return headers;
+}
 
 serve(async (req) => {
+    const corsHeaders = corsHeadersFor(req);
+
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
     }

@@ -1,18 +1,58 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Empty on purpose. Nothing in the portal calls this function -- the only
+// references in src/ are comments -- and the Flutter client is not a browser,
+// so it sends no Origin and is unaffected by any policy here. It used to
+// answer every origin with `*`, which let any web page drive the endpoint from
+// its visitors' browsers.
+//
+// Worth being precise about what this buys: CORS does not stop a request being
+// *made*, it stops a browser *reading the response*. So this raises the bar for
+// browser-driven credential guessing and does nothing against curl. The
+// throttle inside verify_app_credential is the substantive control; this is
+// defence in depth. Add an origin here if a real web client ever needs one.
+const ALLOWED_ORIGINS: readonly string[] = [];
+
+function corsHeaders(req: Request): Record<string, string> {
+    const headers: Record<string, string> = {
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    };
+    const origin = req.headers.get("origin");
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        headers["Access-Control-Allow-Origin"] = origin;
+        headers["Vary"] = "Origin";
+    }
+    return headers;
+}
+
+/// Best-effort caller address for the per-IP throttle. Supabase sets
+/// x-forwarded-for; a spoofed value can only ever cost the spoofer their own
+/// bucket, since the per-username limit is enforced independently.
+function clientIp(req: Request): string | null {
+    const forwarded = req.headers.get("x-forwarded-for");
+    if (!forwarded) return null;
+    return forwarded.split(",")[0].trim() || null;
+}
 
 serve(async (req) => {
+    const cors = corsHeaders(req);
+    const json = { ...cors, "Content-Type": "application/json" };
+
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: corsHeaders });
+        return new Response("ok", { headers: cors });
     }
+
+    // One response for every way a login can be rejected. Splitting these --
+    // 404 "Project not found" for an unknown project, 401 "Invalid username or
+    // password" for bad credentials -- is what made active project codes
+    // enumerable, and it defeated the guard the old comment here said it was
+    // providing. The matching timing oracle is closed inside
+    // verify_app_credential, which always runs one bcrypt comparison whether or
+    // not a credential matched.
+    const rejected = (message = "Invalid project code, username, or password") =>
+        new Response(JSON.stringify({ error: message }), { status: 401, headers: json });
 
     try {
         const { project_code, username, password, device_id, device_info } = await req.json();
@@ -21,7 +61,7 @@ serve(async (req) => {
         if (!project_code || !username || !password) {
             return new Response(
                 JSON.stringify({ error: "Missing required fields" }),
-                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                { status: 400, headers: json }
             );
         }
 
@@ -31,68 +71,64 @@ serve(async (req) => {
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
         );
 
-        // 1. Find project by slug. Only 'active' AND unarchived projects log
-        // in -- archiving a project now blocks field access exactly like
-        // pausing does (they're the same "field access denied" outcome; the
-        // only difference is what governs it and whether it shows in the
-        // owner's default project list). A paused/archived project gets the
-        // SAME generic "Project not found" below, deliberately:
-        // distinguishing "blocked" from "doesn't exist" would let an
-        // unauthenticated caller enumerate valid project codes.
-        const { data: project, error: projectError } = await supabase
-            .from("projects")
-            .select("id, name, slug")
-            .eq("slug", project_code.toLowerCase().trim())
-            .eq("status", "active")
-            .is("archived_at", null)
-            .single();
+        // 1. Throttle check, project + credential lookup, bcrypt verify, attempt
+        // recording and opportunistic re-hash to the current cost -- all in one
+        // atomic round trip. Verification lives in Postgres rather than here
+        // because pgcrypto is native C: the cost factor moved from pgcrypto's
+        // default of 6 to 12 (64x the work), which pure-JS bcryptjs could not
+        // have absorbed. EXECUTE on this function is granted to service_role
+        // only, so the public anon key compiled into the APK cannot call it
+        // directly as a guessing oracle.
+        const { data: verdict, error: verifyError } = await supabase.rpc(
+            "verify_app_credential",
+            {
+                p_project_code: project_code,
+                p_username: username,
+                p_password: password,
+                p_ip: clientIp(req),
+            },
+        );
 
-        if (projectError || !project) {
+        if (verifyError) {
+            console.error("verify_app_credential failed:", verifyError.message);
             return new Response(
-                JSON.stringify({ error: "Project not found" }),
-                { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                JSON.stringify({ error: "Internal server error" }),
+                { status: 500, headers: json }
             );
         }
 
-        // 2. Find credentials
-        const { data: credential, error: credError } = await supabase
-            .from("app_credentials")
-            .select("*")
-            .eq("project_id", project.id)
-            .eq("username", username.trim())
-            .eq("is_active", true)
-            .single();
-
-        if (credError || !credential) {
-            return new Response(
-                JSON.stringify({ error: "Invalid username or password" }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        // 401 rather than 429 deliberately. api_client.dart maps 401 to
+        // SyncAuthException -- which stops the sync run and shows this message
+        // verbatim -- while an unrecognised 429 falls through to
+        // SyncTransferException, a *retryable* transfer error. Retrying is
+        // exactly the wrong response to a lockout, and this way the behaviour
+        // is correct on handsets already in the field. Moving to 429 needs a
+        // client change shipped first.
+        if (verdict?.outcome === "throttled") {
+            return rejected(
+                "Too many failed sign-in attempts. Please wait 15 minutes and try again."
             );
         }
 
-        // 3. Verify password
-        const passwordValid = await bcrypt.compare(password, credential.password_hash);
-        if (!passwordValid) {
-            return new Response(
-                JSON.stringify({ error: "Invalid username or password" }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+        if (verdict?.outcome !== "ok") {
+            return rejected();
         }
 
-        // 4. Update last used timestamp
-        await supabase
-            .from("app_credentials")
-            .update({ last_used_at: new Date().toISOString() })
-            .eq("id", credential.id);
+        const project = verdict.project as { id: string; name: string; code: string };
+        const credential = verdict.credential as {
+            id: string;
+            username: string;
+            description: string | null;
+        };
 
-        // 5. Get available surveys.
+        // 2. Get available surveys.
         // Filtered in code rather than in the query: a `survey_status` enum
         // rename (e.g. 'active' -> 'deployed') would make `.eq("status", ...)`
-        // raise "invalid input value for enum", and since the error here is
-        // destructured away, `surveys` would silently become null -- every
-        // phone would see zero downloadable surveys with no error anywhere.
-        // "active" is the pre-rename spelling of "deployed", kept so this
-        // can ship ahead of (and survive) that migration.
+        // raise "invalid input value for enum", and since a failure here is not
+        // fatal, `surveys` would silently become null -- every phone would see
+        // zero downloadable surveys. "active" is the pre-rename spelling of
+        // "deployed", kept so this can ship ahead of (and survive) that
+        // migration.
         const { data: surveys, error: surveysError } = await supabase
             .from("survey_packages")
             .select("id, name, display_name, version_date, zip_file_path, manifest, updated_at, status")
@@ -118,7 +154,7 @@ serve(async (req) => {
         // independent is what makes each one predictable.
         const downloadableSurveys = (surveys || []).filter((s) => DOWNLOADABLE_STATUSES.has(s.status));
 
-        // 6. Generate signed URLs for survey downloads (valid 24 hours)
+        // 3. Generate signed URLs for survey downloads (valid 24 hours)
         const surveysWithUrls = await Promise.all(
             downloadableSurveys.map(async (survey) => {
                 let downloadUrl = null;
@@ -151,7 +187,7 @@ serve(async (req) => {
             })
         );
 
-        // 7. Generate session token
+        // 4. Generate session token
         const token = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
@@ -172,18 +208,18 @@ serve(async (req) => {
             console.error("Failed to create app session:", sessionError.message);
             return new Response(
                 JSON.stringify({ error: "Internal server error" }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                { status: 500, headers: json }
             );
         }
 
-        // 8. Return success response
+        // 5. Return success response
         return new Response(
             JSON.stringify({
                 success: true,
                 project: {
                     id: project.id,
                     name: project.name,
-                    code: project.slug,
+                    code: project.code,
                 },
                 credential: {
                     id: credential.id,
@@ -194,14 +230,14 @@ serve(async (req) => {
                 token: token,
                 expires_at: expiresAt.toISOString(),
             }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: json }
         );
 
     } catch (error) {
         console.error("Error:", error);
         return new Response(
             JSON.stringify({ error: "Internal server error" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 500, headers: json }
         );
     }
 });

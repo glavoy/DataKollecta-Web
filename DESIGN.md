@@ -143,6 +143,28 @@ Two Supabase Edge Functions, source in `supabase/functions/`:
   `password`, `device_id`, `device_info`. Output: a bearer token (with expiry) and
   the list of surveys available to that project, each with a 24-hour signed
   download URL.
+
+  Every rejection is an identical `401` with the same body, whether the project
+  code is unknown, the project is paused or archived, the username does not
+  exist, or the password is wrong. Distinguishing them let an unauthenticated
+  caller enumerate valid project codes and usernames. The whole decision —
+  throttle check, lookup, bcrypt verify, attempt recording — happens in the
+  `verify_app_credential` SQL function, which always performs exactly one
+  bcrypt comparison so a missing username cannot be told apart by response
+  time. `EXECUTE` on it is granted to `service_role` only: the anon key
+  compiled into the app must not be able to call it as a guessing oracle.
+
+  **Throttling.** Ten failed attempts for one `(project_code, username)` within
+  15 minutes, or fifty from one IP, return a `401` whose message names the
+  lockout. The per-IP limit is deliberately loose because a field team often
+  shares one connection. Throttling gates *login only* — `app-sync`
+  authenticates with the 30-day token, so a locked-out worker keeps syncing
+  data already collected. That is what keeps a lockout from becoming a
+  data-loss event, and it should stay true.
+
+  Passwords are bcrypt at cost 12. Credentials created before that was raised
+  are re-hashed in place on their owner's next successful login, so no reset is
+  needed.
 - **`POST /functions/v1/app-sync`** — input: the bearer token, a batch of
   `submissions`, and optionally `formchanges`. Upserts submissions by
   `local_unique_id` and formchanges by `formchanges_uuid`, so a retried or
