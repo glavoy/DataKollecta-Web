@@ -5,7 +5,7 @@ import { buildSurveyZip } from "@/lib/xml/package";
 import { normalizeStoredQuestions } from "@/lib/xml/normalize";
 import { SurveyStatus, isSurveyLocked } from "@/lib/surveyStatus";
 import { SurveyLockedError, findSurveyIdConflict, surveyIdConflictMessage } from "@/lib/errors/surveyErrors";
-import { versionedSurveyId, nextVersionNumber } from "@/lib/surveyVersion";
+import { versionedSurveyId, versionedDisplayName, nextVersionNumber } from "@/lib/surveyVersion";
 import JSZip from "jszip";
 
 export const surveyService = {
@@ -684,10 +684,24 @@ export const surveyService = {
     const version = nextVersionNumber(siblings as { version: number }[]);
     const newSurveyId = versionedSurveyId(surveyCode, version);
 
+    // The version has to be DISTINGUISHABLE BY NAME, not just by id. This
+    // name becomes the manifest's surveyName, which is what the phone lists
+    // and what it stores as the active survey -- two versions sharing it
+    // would show as two identical rows, and getActiveSurveyId would resolve
+    // the choice to whichever folder the OS listed first. See
+    // versionedDisplayName.
+    const newDisplayName = versionedDisplayName(
+      sourceRow.display_name as string,
+      version
+    );
+
     const next: SurveyPackage = {
       ...source,
       id: crypto.randomUUID(),
       surveyId: newSurveyId,
+      // pkg.name is the DISPLAY name, and generateManifestGistx writes it
+      // straight into the manifest as surveyName.
+      name: newDisplayName,
       // databaseName is deliberately NOT regenerated -- it is what makes this
       // a version rather than a fork.
       databaseName: source.databaseName,
@@ -703,7 +717,7 @@ export const surveyService = {
       next,
       args.projectId,
       args.userId,
-      sourceRow.display_name as string,
+      newDisplayName,
       newSurveyId,
       'draft',
       { surveyCode, version }

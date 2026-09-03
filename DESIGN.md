@@ -96,7 +96,13 @@ Real tables, in the order data actually flows through them:
   together. Two different `survey_code`s may never claim one `databaseName`.
   A survey is revised with **New Version** (same code, same database, data
   continues); **Duplicate** is the other operation — it forks a separate study
-  with its own code, database and data. Versions are locked and un-locked
+  with its own code, database and data. A version's `display_name` carries the
+  version (`PRISM CSS v2`) because it is written into the manifest as
+  `surveyName`, which is what the **app** lists and what it stores as the
+  active survey — two versions sharing that name would be indistinguishable on
+  the phone. `databaseName` is unique per survey across the whole account, not
+  just per project, because a device can hold several projects at once and
+  opens one SQLite file per `databaseName`. Versions are locked and un-locked
   independently, and several versions of one survey may be `deployed` at once,
   which is how teams on different timelines run different versions.
 - **`crfs`** — one row per form within a survey package, describing its fields,

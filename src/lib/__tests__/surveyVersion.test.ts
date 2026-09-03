@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   versionedSurveyId,
+  versionedDisplayName,
+  stripVersionSuffix,
   deriveSurveyCode,
   nextVersionNumber,
   formatVersionLabel,
@@ -56,6 +58,40 @@ describe('nextVersionNumber', () => {
 
   it('is order-independent', () => {
     expect(nextVersionNumber([{ version: 3 }, { version: 1 }, { version: 2 }])).toBe(4);
+  });
+});
+
+describe('versionedDisplayName', () => {
+  // This name becomes the manifest's surveyName, which is the app's identity
+  // key: the phone lists surveyNames and stores the ACTIVE survey as one, and
+  // getActiveSurveyId resolves it by returning the first matching folder. Two
+  // versions sharing a name would be indistinguishable in the list and would
+  // resolve non-deterministically.
+  it('leaves version 1 alone -- it may be deployed and locked', () => {
+    expect(versionedDisplayName('PRISM CSS', 1)).toBe('PRISM CSS');
+  });
+
+  it('distinguishes later versions', () => {
+    expect(versionedDisplayName('PRISM CSS', 2)).toBe('PRISM CSS v2');
+    expect(versionedDisplayName('PRISM CSS', 10)).toBe('PRISM CSS v10');
+  });
+
+  it('does not compound when versioning a version', () => {
+    expect(versionedDisplayName('PRISM CSS v2', 3)).toBe('PRISM CSS v3');
+  });
+
+  it('gives every version of a lineage a distinct name', () => {
+    const names = [1, 2, 3, 4].map((v) => versionedDisplayName('PRISM CSS', v));
+    expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('stripVersionSuffix', () => {
+  it('removes only a trailing version marker', () => {
+    expect(stripVersionSuffix('PRISM CSS v2')).toBe('PRISM CSS');
+    expect(stripVersionSuffix('PRISM CSS')).toBe('PRISM CSS');
+    // Not a suffix -- a study whose name genuinely contains "v2".
+    expect(stripVersionSuffix('PRISM CSS v2 Follow-up')).toBe('PRISM CSS v2 Follow-up');
   });
 });
 

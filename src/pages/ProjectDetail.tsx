@@ -108,6 +108,16 @@ interface SurveyPackage {
   version: number;
 }
 
+/** The parts of an uploaded survey_manifest.gistx this page reads. Untrusted
+ *  input -- everything is optional and validated before use. */
+interface UploadedManifest {
+  surveyId?: string;
+  surveyName?: string;
+  databaseName?: string;
+  description?: string;
+  crfs?: Record<string, unknown>[];
+}
+
 interface ProjectStats {
   surveysCount: number;
   submissionsCount: number;
@@ -176,6 +186,14 @@ const ProjectDetail = () => {
   // supported state, not a mistake -- field teams in different regions start at
   // different times, and one may need to finish on the old version.
   const [retireSiblingOnDeploy, setRetireSiblingOnDeploy] = useState(false);
+  // An upload held at the point of decision: its databaseName matches an
+  // existing survey, so it can only be that survey's next version. Nothing has
+  // been written yet, so cancelling here leaves no trace.
+  const [pendingVersionUpload, setPendingVersionUpload] = useState<{
+    manifest: UploadedManifest;
+    surveyId: string;
+    lineage: NonNullable<Awaited<ReturnType<typeof surveyService.findLineageByDatabaseName>>>;
+  } | null>(null);
   // Archiving a survey that's still deployed doesn't stop phones downloading
   // it -- that's what "Complete" is for. Confirm before archiving one of
   // those, since it's easy to assume archiving hides it from devices too.
@@ -594,18 +612,66 @@ const ProjectDetail = () => {
       // one SQLite file per databaseName, so two packages declaring the same
       // one ARE the same dataset whatever they are called.
       //
-      // This is a determination, not a question put to the user. A shared
-      // databaseName means a shared file on every phone; letting an unrelated
-      // survey claim it produces colliding tables and a shared subject-ID
-      // counter. There is deliberately no "import as a separate survey"
-      // escape hatch here -- enforce_survey_database_binding refuses it at the
-      // database anyway, and the only correct fix is a different databaseName
-      // in the package's own SurveyGen config.json.
+      // A match is a determination, not a menu: the package will be added as
+      // that survey's next version, and there is deliberately no "import as a
+      // separate survey" option -- a shared databaseName means a shared file
+      // on every phone, and enforce_survey_database_binding refuses the
+      // alternative at the database anyway.
+      //
+      // The user can still CANCEL, which is a different thing: it abandons
+      // the upload entirely and writes nothing. That is the out for the case
+      // this is most likely to catch -- a designer who meant to author a new
+      // study but reused an existing databaseName in their SurveyGen
+      // config.json. They fix the config and upload again; nothing has been
+      // touched in the meantime, which is why this decision happens BEFORE
+      // the storage upload (that upload is upsert:true and cannot be undone).
       const lineage = manifest.databaseName
         ? await surveyService.findLineageByDatabaseName(project.id, manifest.databaseName)
         : null;
+
+      if (lineage) {
+        setPendingVersionUpload({ manifest, surveyId, lineage });
+        setUploading(false);
+        return;
+      }
+
+      await performSurveyUpload(manifest, surveyId, null);
+    } catch (error: unknown) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description:
+          translateSurveyWriteError(error) ??
+          (error instanceof Error ? error.message : null) ??
+          "Failed to process survey package.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /**
+   * The write half of an upload, run once the survey it belongs to is settled.
+   * `lineage` non-null means the package joins an existing survey as its next
+   * version; null means it starts one.
+   */
+  const performSurveyUpload = async (
+    manifest: UploadedManifest,
+    surveyId: string,
+    lineage: Awaited<ReturnType<typeof surveyService.findLineageByDatabaseName>>
+  ) => {
+    if (!uploadFile || !project) return;
+
+    try {
+      setUploading(true);
       const surveyCode = lineage?.surveyCode ?? surveyId;
       const version = lineage?.nextVersion ?? 1;
+
+      // Re-read the zip rather than carrying the parsed handle across the
+      // confirmation step -- the two halves stay independent, and the file in
+      // state is the same one either way.
+      const loadedZip = await new JSZip().loadAsync(uploadFile);
 
       // Use surveyId from manifest as the storage filename (consistent with surveyService.ts)
       const sanitizedSurveyId = surveyId.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
@@ -633,7 +699,12 @@ const ProjectDetail = () => {
           // break that invariant on every device. `name` only has to be
           // unique; `version` is what orders the lineage.
           name: surveyId,
-          display_name: lineage?.displayName ?? (manifest.surveyName || surveyId),
+          // The manifest's own surveyName, NOT the lineage's -- the app lists
+          // surveyNames and stores the active survey as one, so a version
+          // that reused the earlier version's name would be indistinguishable
+          // on the phone. SurveyGen's convention already carries the revision
+          // in this field.
+          display_name: manifest.surveyName || surveyId,
           survey_code: surveyCode,
           version: version,
           version_date: new Date().toISOString(),
@@ -695,7 +766,7 @@ const ProjectDetail = () => {
           linking_field: crfEntry.linkingfield || null,
           parent_table: crfEntry.parenttable || null,
           id_config: crfEntry.idconfig
-            ? { ...crfEntry.idconfig, _formConfig: formConfig }
+            ? { ...(crfEntry.idconfig as Record<string, unknown>), _formConfig: formConfig }
             : { _formConfig: formConfig },
           display_fields: crfEntry.display_fields || null,
           auto_start_repeat: crfEntry.auto_start_repeat || 0,
@@ -730,14 +801,18 @@ const ProjectDetail = () => {
       setIsUploadOpen(false);
       setUploadFile(null);
       setUploadDescription(""); // Reset description
+      setPendingVersionUpload(null);
       fetchProjectData();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
 
       toast({
         title: "Upload Failed",
-        description: translateSurveyWriteError(error) ?? error.message ?? "Failed to process survey package.",
+        description:
+          translateSurveyWriteError(error) ??
+          (error instanceof Error ? error.message : null) ??
+          "Failed to process survey package.",
         variant: "destructive",
       });
     } finally {
@@ -1217,6 +1292,53 @@ const ProjectDetail = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Upload joins an existing survey as its next version */}
+        <AlertDialog
+          open={!!pendingVersionUpload}
+          onOpenChange={(open) => !open && setPendingVersionUpload(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Add as version {pendingVersionUpload?.lineage.nextVersion} of "
+                {pendingVersionUpload?.lineage.displayName}"?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>
+                    This package declares database{' '}
+                    <code>{pendingVersionUpload?.manifest?.databaseName}</code>, which "
+                    {pendingVersionUpload?.lineage.displayName}" already uses. On a phone that
+                    is one file, so this package collects into the same data as that survey's{' '}
+                    {pendingVersionUpload?.lineage.versions.length} existing version
+                    {pendingVersionUpload?.lineage.versions.length === 1 ? '' : 's'}.
+                  </p>
+                  <p>
+                    <strong>If you meant to create a separate survey</strong>, cancel: nothing
+                    has been uploaded yet. Give it a different <code>databaseName</code> in its
+                    SurveyGen <code>config.json</code>, regenerate the package and upload again.
+                    Two surveys cannot share one database -- they would write into the same file
+                    on the device, mixing their records and their ID counters.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel upload</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const pending = pendingVersionUpload;
+                  if (!pending) return;
+                  setPendingVersionUpload(null);
+                  performSurveyUpload(pending.manifest, pending.surveyId, pending.lineage);
+                }}
+              >
+                Add as version {pendingVersionUpload?.lineage.nextVersion}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Status transition confirmation */}
         <AlertDialog open={!!surveyForTransition} onOpenChange={(open) => !open && setSurveyForTransition(null)}>

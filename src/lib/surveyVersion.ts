@@ -61,6 +61,34 @@ export function nextVersionNumber(siblings: readonly { version: number }[]): num
 }
 
 /**
+ * The display name a version carries, e.g. `PRISM CSS` -> `PRISM CSS v2`.
+ *
+ * This is NOT cosmetic. It becomes the manifest's `surveyName`, which is the
+ * app's own identity key for a survey: getAvailableSurveys lists surveyNames,
+ * SettingsService stores the ACTIVE survey as a surveyName, and
+ * getActiveSurveyId resolves that name back to a surveyId by scanning
+ * manifests and returning the FIRST folder that matches. Two versions sharing
+ * a surveyName would therefore show as two identical rows in the phone's
+ * survey list, and picking either would resolve to whichever folder the OS
+ * happened to list first -- possibly loading v1's questions when the user
+ * chose v2.
+ *
+ * Version 1 is left alone: it may already be deployed and locked (so it
+ * cannot be renamed), and existing surveys must not change name under
+ * people. The result reads naturally anyway -- `PRISM CSS`, `PRISM CSS v2`,
+ * `PRISM CSS v3`.
+ */
+export function versionedDisplayName(baseName: string, version: number): string {
+  const base = stripVersionSuffix(baseName);
+  return version <= 1 ? base : `${base} v${version}`;
+}
+
+/** Removes a trailing ` v<N>` so versioning a version does not compound it. */
+export function stripVersionSuffix(name: string): string {
+  return name.replace(/ v\d+$/, '');
+}
+
+/**
  * `v2 · 14 Aug 2026`. The number carries the ordering, the date is there
  * because it is what people actually recognise a revision by.
  */
