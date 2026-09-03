@@ -36,6 +36,7 @@ import JSZip from "jszip";
 import { FormChangesView } from "@/components/FormChangesView";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 import { buildCsv } from "@/lib/csv";
+import { groupByLineage, versionByPackageId } from "@/lib/surveyVersion";
 import { useToast } from "@/hooks/use-toast";
 
 interface FormWithCount {
@@ -44,15 +45,23 @@ interface FormWithCount {
   display_name: string;
   fields: any[];
   recordCount: number;
-  /** Two survey versions can share a table_name; every submissions query
-      must be scoped by this too, or their data mixes together. */
-  survey_package_id: string;
+  /** Every version of this survey that could hold rows for this form.
+      Versions of one survey deliberately SHARE a table_name -- that is what
+      makes their data one dataset -- so queries scope to this whole set
+      rather than a single package. Two DIFFERENT surveys in a project can
+      also share a table_name, which is why the scope is still needed. */
+  survey_package_ids: string[];
+  /** package id -> version number, for stamping survey_version onto rows. */
+  versionByPackage: Record<string, number>;
 }
 
+/** One survey and all its versions, presented as a single dataset. */
 interface SurveyWithForms {
+  /** The lineage's stable code -- the key for this card. */
   id: string;
   name: string;
   display_name: string;
+  versionCount: number;
   forms: FormWithCount[];
   totalRecords: number;
 }
@@ -64,6 +73,7 @@ interface Submission {
   surveyor_id: string;
   collected_at: string;
   submitted_at: string;
+  survey_package_id: string;
 }
 
 interface ProjectDataProps {
@@ -83,50 +93,81 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
   const { data: surveysWithForms, isLoading: surveysLoading, isError: surveysIsError } = useQuery({
     queryKey: ['surveysWithForms', projectId],
     queryFn: async (): Promise<SurveyWithForms[]> => {
-      // 1. Get all surveys for the project
+      // 1. Get all survey versions for the project, then group them into the
+      //    surveys they are versions OF. Every version of one survey collects
+      //    into a single dataset -- one SQLite file on the device -- so the
+      //    portal presents them as one entry rather than one per version.
       const { data: surveys, error: surveysError } = await supabase
         .from('survey_packages')
-        .select('id, name, display_name')
+        .select('id, name, display_name, survey_code, version, version_date')
         .eq('project_id', projectId)
         .order('version_date', { ascending: false });
 
       if (surveysError) throw surveysError;
       if (!surveys) return [];
 
-      // 2. For each survey, get its forms with record counts
+      const lineages = groupByLineage(surveys);
+
+      // 2. For each survey, get its forms with record counts across every version
       const surveysWithData = await Promise.all(
-        surveys.map(async (survey) => {
-          // Get forms for this survey
+        lineages.map(async (lineage) => {
+          const versionIds = lineage.versions.map((v) => v.id);
+          const versionByPackage = versionByPackageId(lineage.versions);
+
+          // Forms are the UNION across versions -- a form added in v2 must
+          // appear, and one dropped after v1 must still be reachable while it
+          // holds data. Ordered by version descending so the newest
+          // definition of a shared table_name wins the dedupe below.
           const { data: forms } = await supabase
             .from('crfs')
-            .select('id, table_name, display_name, fields')
-            .eq('survey_package_id', survey.id)
+            .select('id, table_name, display_name, fields, survey_package_id')
+            .in('survey_package_id', versionIds)
             .order('display_order');
 
           if (!forms) {
             return {
-              ...survey,
+              id: lineage.surveyCode,
+              name: lineage.surveyCode,
+              display_name: lineage.latest.display_name,
+              versionCount: lineage.versions.length,
               forms: [],
               totalRecords: 0
             };
           }
 
-          // Get record count for each form
+          const byTable = new Map<string, typeof forms[number]>();
+          for (const form of forms) {
+            const existing = byTable.get(form.table_name);
+            const existingVersion = existing ? versionByPackage[existing.survey_package_id] ?? 0 : -1;
+            const thisVersion = versionByPackage[form.survey_package_id] ?? 0;
+            if (thisVersion > existingVersion) byTable.set(form.table_name, form);
+          }
+          const uniqueForms = Array.from(byTable.values());
+
+          // Get record count for each form, across every version
           const formsWithCounts = await Promise.all(
-            forms.map(async (form) => {
+            uniqueForms.map(async (form) => {
               const { count } = await supabase
                 .from('submissions')
                 .select('*', { count: 'exact', head: true })
                 .eq('project_id', projectId)
-                .eq('survey_package_id', survey.id)
+                .in('survey_package_id', versionIds)
                 .eq('table_name', form.table_name);
 
-              return { ...form, survey_package_id: survey.id, recordCount: count || 0 };
+              return {
+                ...form,
+                survey_package_ids: versionIds,
+                versionByPackage,
+                recordCount: count || 0,
+              };
             })
           );
 
           return {
-            ...survey,
+            id: lineage.surveyCode,
+            name: lineage.surveyCode,
+            display_name: lineage.latest.display_name,
+            versionCount: lineage.versions.length,
             forms: formsWithCounts,
             totalRecords: formsWithCounts.reduce((sum, f) => sum + f.recordCount, 0)
           };
@@ -139,15 +180,15 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
 
   // Fetch submissions for the selected form
   const { data: submissions, isLoading: submissionsLoading } = useQuery({
-    queryKey: ['formSubmissions', projectId, selectedForm?.survey_package_id, selectedForm?.table_name],
+    queryKey: ['formSubmissions', projectId, selectedForm?.survey_package_ids, selectedForm?.table_name],
     queryFn: async () => {
       if (!selectedForm) return [];
       return fetchAllRows<Submission>((from, to) =>
         supabase
           .from('submissions')
-          .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at')
+          .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at, survey_package_id')
           .eq('project_id', projectId)
-          .eq('survey_package_id', selectedForm.survey_package_id)
+          .in('survey_package_id', selectedForm.survey_package_ids)
           .eq('table_name', selectedForm.table_name)
           .order('collected_at', { ascending: false })
           .range(from, to),
@@ -185,8 +226,18 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     currentPage * pageSize
   );
 
-  // CSV generation helper
-  const generateCSV = (submissions: any[]): string => {
+  /**
+   * One CSV per form, covering every version of the survey.
+   *
+   * Columns are the union across versions, which is the right shape rather
+   * than a compromise: it is exactly what the phone's own SQLite ends up with
+   * after _syncSurveyTable ALTER TABLEs a new question in, so a v1 row is
+   * blank in a v2-only column in both places. `survey_version` leads the row
+   * so a reader can always tell which version produced it -- without it, a
+   * blank cell is ambiguous between "not asked in that version" and "asked
+   * and skipped".
+   */
+  const generateCSV = (submissions: any[], versionByPackage: Record<string, number>): string => {
     if (!submissions || submissions.length === 0) return '';
 
     // Get all unique field names, sorted for a deterministic column order
@@ -199,8 +250,9 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     });
     const fieldNames = Array.from(allFieldNames).sort();
 
-    const headers = ['local_unique_id', 'surveyor_id', 'collected_at', 'submitted_at', ...fieldNames];
+    const headers = ['survey_version', 'local_unique_id', 'surveyor_id', 'collected_at', 'submitted_at', ...fieldNames];
     const rows = submissions.map(sub => [
+      versionByPackage[sub.survey_package_id] ?? '',
       sub.local_unique_id,
       sub.surveyor_id,
       sub.collected_at,
@@ -233,7 +285,7 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
   const handleExportSingleForm = () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0 || !selectedForm) return;
 
-    const csvContent = generateCSV(filteredSubmissions);
+    const csvContent = generateCSV(filteredSubmissions, selectedForm.versionByPackage);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -247,15 +299,16 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
     URL.revokeObjectURL(url);
   };
 
-  // Export all forms for a survey to ZIP
-  const handleExportSurvey = async (surveyId: string) => {
-    const survey = surveysWithForms?.find(s => s.id === surveyId);
+  // Export every form of a survey -- across all its versions -- to one ZIP.
+  const handleExportSurvey = async (surveyCode: string) => {
+    const survey = surveysWithForms?.find(s => s.id === surveyCode);
     if (!survey) return;
 
-    setExportingId(surveyId);
+    setExportingId(surveyCode);
 
     try {
       const zip = new JSZip();
+      const versionIds = survey.forms[0]?.survey_package_ids ?? [];
 
       // Export each form to CSV and add to ZIP -- paged, not a single
       // select(), or a form with more than max_rows submissions silently
@@ -266,24 +319,27 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
             .from('submissions')
             .select('*')
             .eq('project_id', projectId)
-            .eq('survey_package_id', surveyId)
+            .in('survey_package_id', form.survey_package_ids)
             .eq('table_name', form.table_name)
             .range(from, to),
         );
 
         if (formSubmissions.length > 0) {
-          const csvContent = generateCSV(formSubmissions);
+          const csvContent = generateCSV(formSubmissions, form.versionByPackage);
           zip.file(`${form.table_name}.csv`, csvContent);
         }
       }
 
-      // Export formchanges for this survey
-      // Get all local_unique_ids for this survey's submissions
-      const surveySubmissions = await fetchAllRows<{ local_unique_id: string }>((from, to) =>
+      // Export formchanges for this survey.
+      //
+      // formchanges carries no survey link of its own -- only record_uuid,
+      // which is a submission's local_unique_id -- so the record ids have to
+      // be gathered first, across every version.
+      const surveySubmissions = versionIds.length === 0 ? [] : await fetchAllRows<{ local_unique_id: string }>((from, to) =>
         supabase
           .from('submissions')
           .select('local_unique_id')
-          .eq('survey_package_id', surveyId)
+          .in('survey_package_id', versionIds)
           .range(from, to),
       );
 
@@ -381,6 +437,9 @@ const ProjectData = ({ projectId, projectName }: ProjectDataProps) => {
                     </CardTitle>
                     <CardDescription>
                       {survey.forms.length} form{survey.forms.length !== 1 ? 's' : ''} • {survey.totalRecords} total record{survey.totalRecords !== 1 ? 's' : ''}
+                      {survey.versionCount > 1 && (
+                        <> • {survey.versionCount} versions, merged</>
+                      )}
                     </CardDescription>
                   </div>
                   <Button

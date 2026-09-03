@@ -146,12 +146,14 @@ interface SurveyDesignerProps {
   userId?: string;
   /** Current lifecycle status of `surveyRecordId`. Draft when creating new. */
   surveyStatus?: SurveyStatus;
+  /** Which version of its survey this package is; 1 for a brand-new survey. */
+  surveyVersion?: number;
   /** Called after a successful status-changing save so the page-level state
    *  (and this component's own gating) stays in sync without a re-fetch. */
   onStatusChange?: (status: SurveyStatus) => void;
 }
 
-const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId, surveyStatus = 'draft', onStatusChange }: SurveyDesignerProps) => {
+const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId, surveyStatus = 'draft', surveyVersion = 1, onStatusChange }: SurveyDesignerProps) => {
   const { toast } = useToast();
   const [surveyPackage, setSurveyPackage] = useState<SurveyPackage>(
     initialPackage || {
@@ -615,7 +617,8 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             <span>
               This survey is {STATUS_LABEL[surveyStatus].toLowerCase()} and can no longer be
               edited{surveyStatus === 'deployed' ? ' -- it is already installed on field devices under this Survey ID' : ''}.
-              {' '}Duplicate it to make changes.
+              {' '}Use New Version from the surveys list to revise it -- the revision keeps the same
+              database, so its data joins this survey's rather than starting a second dataset.
             </span>
           </div>
         )}
@@ -686,7 +689,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
             <AlertDialogTitle>Deploy this survey?</AlertDialogTitle>
             <AlertDialogDescription>
               Deploying locks this survey -- its questions can never be changed again. To make
-              changes later you will duplicate it under a new Survey ID. Phones will download it
+              changes later, use New Version -- the revision collects into the same data. Phones will download it
               at their next login (sessions last up to 30 days, so it may not reach every device
               immediately).
               {surveyStatus === 'draft' && (
@@ -948,6 +951,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         onOpenChange={setShowGlobalSettings}
         onSave={(pkg) => updatePackage(pkg)}
         readOnly={locked}
+        surveyVersion={surveyVersion}
       />
 
       {/* XML Preview Dialog */}

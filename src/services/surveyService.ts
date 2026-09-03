@@ -5,6 +5,7 @@ import { buildSurveyZip } from "@/lib/xml/package";
 import { normalizeStoredQuestions } from "@/lib/xml/normalize";
 import { SurveyStatus, isSurveyLocked } from "@/lib/surveyStatus";
 import { SurveyLockedError, findSurveyIdConflict, surveyIdConflictMessage } from "@/lib/errors/surveyErrors";
+import { versionedSurveyId, nextVersionNumber } from "@/lib/surveyVersion";
 import JSZip from "jszip";
 
 export const surveyService = {
@@ -40,6 +41,88 @@ export const surveyService = {
   },
 
   /**
+   * The lineage an existing row already belongs to, or a fresh one for a
+   * survey being created. An ordinary designer save must never MOVE a survey
+   * between lineages or renumber it -- the version it belongs to was decided
+   * when the row was created, and for a locked survey the DB trigger refuses
+   * the change outright.
+   */
+  async resolveLineage(
+    surveyPackageId: string,
+    surveyName: string
+  ): Promise<{ surveyCode: string; version: number }> {
+    const { data: existing, error } = await supabase
+      .from('survey_packages')
+      .select('survey_code, version')
+      .eq('id', surveyPackageId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (existing?.survey_code) {
+      return {
+        surveyCode: existing.survey_code as string,
+        version: (existing.version as number) ?? 1,
+      };
+    }
+
+    // A survey being created starts its own lineage, keyed by its own
+    // Survey ID, at version 1.
+    return { surveyCode: surveyName, version: 1 };
+  },
+
+  /**
+   * Every version of one survey, newest first. The (project_id, survey_code)
+   * index backs this.
+   */
+  async getLineageVersions(projectId: string, surveyCode: string) {
+    const { data, error } = await supabase
+      .from('survey_packages')
+      .select('id, name, display_name, survey_code, version, version_date, status, manifest')
+      .eq('project_id', projectId)
+      .eq('survey_code', surveyCode)
+      .order('version', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * The lineage in this project whose versions declare `databaseName`, or null.
+   *
+   * This is how an uploaded ZIP finds the survey it is a version of. Matching
+   * is on databaseName alone -- never on a naming convention, never on
+   * surveyId -- because databaseName is the thing that actually decides data
+   * continuity on the device: DbService opens one SQLite file per
+   * databaseName, so two packages declaring the same one ARE the same dataset
+   * whatever they are called.
+   *
+   * enforce_survey_database_binding guarantees at most one lineage can match,
+   * which is what lets the upload flow treat the result as a determination
+   * rather than a question to put to the user.
+   */
+  async findLineageByDatabaseName(projectId: string, databaseName: string) {
+    if (!databaseName) return null;
+
+    const { data, error } = await supabase
+      .from('survey_packages')
+      .select('id, name, display_name, survey_code, version, version_date, status')
+      .eq('project_id', projectId)
+      .eq('manifest->>databaseName', databaseName)
+      .order('version', { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) return null;
+
+    return {
+      surveyCode: data[0].survey_code as string,
+      displayName: data[0].display_name as string,
+      versions: data,
+      nextVersion: nextVersionNumber(data as { version: number }[]),
+      latestId: data[0].id as string,
+    };
+  },
+
+  /**
    * Saves the survey package (forms/CRFs) to a new survey_packages record.
    * Creates a new survey version with display_name and name.
    */
@@ -49,8 +132,17 @@ export const surveyService = {
     userId: string,
     surveyDisplayName: string,
     surveyName: string,
-    status: SurveyStatus = 'draft'
+    status: SurveyStatus = 'draft',
+    lineage?: { surveyCode: string; version: number }
   ) {
+    // Which survey this package is a version OF. Resolved here rather than
+    // pushed onto every caller: the designer neither knows nor should decide
+    // it, and the upsert below lists its columns explicitly, so a missing
+    // survey_code would null out the lineage on every ordinary save (and
+    // fail the NOT NULL). Callers that genuinely own the answer --
+    // createSurveyVersion, duplicateSurveyPackage, and the ZIP upload --
+    // pass it explicitly.
+    const resolvedLineage = lineage ?? (await this.resolveLineage(pkg.id, surveyName));
     // 0. Refuse before touching storage. The upload below is `upsert: true`
     // and happens BEFORE the DB write -- if a locked survey's save reached
     // that upload, the deployed package's zip would already be overwritten
@@ -119,6 +211,8 @@ export const surveyService = {
         // how one already-deployed survey ended up with name = ''.
         name: surveyName,
         display_name: surveyDisplayName,
+        survey_code: resolvedLineage.surveyCode,
+        version: resolvedLineage.version,
         version_date: new Date().toISOString().split('T')[0],
         description: null, // Optional description field
         manifest: JSON.parse(manifestJson),
@@ -211,7 +305,7 @@ export const surveyService = {
    * Loads the survey package for a specific survey_package_id.
    * Returns the survey with all its CRFs/questionnaires.
    */
-  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null; status: SurveyStatus; archivedAt: string | null }> {
+  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null; status: SurveyStatus; archivedAt: string | null; surveyCode: string; version: number }> {
     // 1. Fetch the survey package
     const { data: survey, error: surveyError } = await supabase
       .from('survey_packages')
@@ -298,6 +392,8 @@ export const surveyService = {
       serverUpdatedAt: survey.updated_at ?? null,
       status: survey.status as SurveyStatus,
       archivedAt: survey.archived_at ?? null,
+      surveyCode: (survey.survey_code as string) ?? survey.name,
+      version: (survey.version as number) ?? 1,
     };
   },
 
@@ -513,13 +609,104 @@ export const surveyService = {
       })),
     };
 
+    // A fork starts its OWN lineage at version 1. Inheriting the source's
+    // survey_code here would be actively wrong: the copy carries a different
+    // databaseName (see the doc comment above), so its data lives in a
+    // different SQLite file on every device -- grouping the two as versions
+    // of one survey would merge two datasets in the portal that are not
+    // merged anywhere else. Use createSurveyVersion when the intent is a
+    // revision rather than a fork.
     const saved = await this.saveSurveyPackage(
       copy,
       args.targetProjectId,
       args.userId,
       args.newDisplayName,
       args.newSurveyId,
-      'draft'
+      'draft',
+      { surveyCode: args.newSurveyId, version: 1 }
+    );
+
+    const { error } = await supabase
+      .from('survey_packages')
+      .update({ copied_from: args.sourceId })
+      .eq('id', saved.id);
+
+    if (error) throw error;
+
+    return saved;
+  },
+
+  /**
+   * Creates the next VERSION of an existing survey: a new editable draft that
+   * belongs to the same survey and collects into the same dataset.
+   *
+   * This is the sanctioned way to revise a deployed survey. It is not the same
+   * operation as duplicateSurveyPackage, and the difference is the whole point:
+   *
+   *   duplicate -> a different study.  New survey_code, new databaseName,
+   *                its own dataset, subject-ID counters start from scratch.
+   *   version   -> the same study.     Same survey_code, SAME databaseName,
+   *                so the phone opens the existing SQLite file, ALTER TABLEs
+   *                any new questions in, and the subject-ID counter continues.
+   *
+   * Carrying databaseName over is the load-bearing part. Regenerating it (as
+   * duplicateSurveyPackage deliberately does) is exactly what made "add one
+   * question to a deployed survey" split the data in two.
+   *
+   * Everything else follows duplicateSurveyPackage: every id in the copied
+   * package is regenerated, because saveSurveyPackage upserts survey_packages
+   * on pkg.id and crfs on form.id -- reusing the source's ids would overwrite
+   * the source instead of creating a new row. Field NAMES are left untouched;
+   * skip logic, linkingfield, primaryKey, display_fields and the generated XML
+   * all key off names.
+   *
+   * The new version's Survey ID is minted as `${surveyCode}_v${n}` because the
+   * designer owns the IDs it creates. A version arriving by ZIP upload keeps
+   * its manifest's own surveyId instead -- see surveyVersion.ts.
+   */
+  async createSurveyVersion(args: {
+    sourceId: string;
+    projectId: string;
+    userId: string;
+  }) {
+    const { pkg: source } = await this.getSurveyPackage(args.sourceId);
+
+    const { data: sourceRow, error: sourceError } = await supabase
+      .from('survey_packages')
+      .select('survey_code, display_name')
+      .eq('id', args.sourceId)
+      .single();
+
+    if (sourceError) throw sourceError;
+
+    const surveyCode = sourceRow.survey_code as string;
+    const siblings = await this.getLineageVersions(args.projectId, surveyCode);
+    const version = nextVersionNumber(siblings as { version: number }[]);
+    const newSurveyId = versionedSurveyId(surveyCode, version);
+
+    const next: SurveyPackage = {
+      ...source,
+      id: crypto.randomUUID(),
+      surveyId: newSurveyId,
+      // databaseName is deliberately NOT regenerated -- it is what makes this
+      // a version rather than a fork.
+      databaseName: source.databaseName,
+      csvFiles: (source.csvFiles || []).map(f => ({ ...f, id: crypto.randomUUID() })),
+      forms: source.forms.map(form => ({
+        ...form,
+        id: crypto.randomUUID(),
+        questions: form.questions.map(q => ({ ...q, id: crypto.randomUUID() })),
+      })),
+    };
+
+    const saved = await this.saveSurveyPackage(
+      next,
+      args.projectId,
+      args.userId,
+      sourceRow.display_name as string,
+      newSurveyId,
+      'draft',
+      { surveyCode, version }
     );
 
     const { error } = await supabase

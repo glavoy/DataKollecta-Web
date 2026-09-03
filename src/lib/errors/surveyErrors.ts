@@ -16,8 +16,8 @@ export class SurveyLockedError extends Error {
     super(
       `"${displayName}" is ${STATUS_LABEL[status].toLowerCase()} and can no longer be edited. ` +
       `It is already installed on field devices under this Survey ID, and changing it would ` +
-      `leave phones collecting against a different version of the same survey. Use Duplicate ` +
-      `to create an editable copy with a new Survey ID.`
+      `leave phones collecting against a different version of the same survey. Use New Version ` +
+      `to create an editable copy -- it collects into the same data as this one.`
     );
     this.name = 'SurveyLockedError';
   }
@@ -108,8 +108,8 @@ export function surveyIdConflictMessage(c: SurveyIdConflict): string {
       `Survey IDs must be unique: when a phone uploads data, the server finds the right ` +
       `survey by matching this ID against each package's manifest. Two surveys sharing an ` +
       `ID would make submitted records impossible to route -- for both surveys, not just ` +
-      `the new one. Choose a different Survey ID, or use Duplicate on the existing survey ` +
-      `to start a new version from it.`
+      `the new one. Choose a different Survey ID, or use New Version on the existing survey ` +
+      `to start a revision that collects into the same data.`
     );
   }
 
@@ -149,7 +149,7 @@ export function translateSurveyWriteError(err: unknown): string | null {
         `A survey with this ID already exists in this project. Survey IDs must be unique: ` +
         `the server routes each phone's submitted data by matching this ID against the ` +
         `manifest, so two surveys sharing an ID would break sync for both. Choose a ` +
-        `different Survey ID, or use Duplicate on the existing survey instead.`
+        `different Survey ID, or use New Version on the existing survey instead.`
       );
     }
   }
@@ -166,8 +166,23 @@ export function translateSurveyWriteError(err: unknown): string | null {
     if (marker === 'sp_locked') {
       return (
         `This survey is locked and its content can no longer be changed. It is already ` +
-        `installed on field devices under this Survey ID. Use Duplicate to create an ` +
-        `editable copy with a new Survey ID.`
+        `installed on field devices under this Survey ID. Use New Version to create an ` +
+        `editable copy -- it collects into the same data as this one.`
+      );
+    }
+    if (marker === 'sp_lineage_database_mismatch') {
+      return (
+        `Every version of a survey must use the same database name -- that shared database ` +
+        `is what keeps their data together on the device. This package declares a different ` +
+        `one, so it cannot be a version of this survey.`
+      );
+    }
+    if (marker === 'sp_database_in_use') {
+      return (
+        `Another survey in this project already uses this database name. Two different ` +
+        `surveys cannot share one database: on a phone they would write into the same file, ` +
+        `mixing their records and their ID counters. Give this survey a different database ` +
+        `name, or add it as a version of the survey that already uses it.`
       );
     }
     if (marker === 'sp_delete_locked') {
@@ -178,8 +193,8 @@ export function translateSurveyWriteError(err: unknown): string | null {
     }
     // hint present but code wasn't 23514 (defensive) -- generic locked message.
     return (
-      `This survey is locked and can no longer be changed. Use Duplicate to create an ` +
-      `editable copy with a new Survey ID.`
+      `This survey is locked and can no longer be changed. Use New Version to create an ` +
+      `editable copy that collects into the same data.`
     );
   }
 

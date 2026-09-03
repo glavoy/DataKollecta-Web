@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { groupByLineage } from "@/lib/surveyVersion";
 
 interface ProjectOverviewProps {
   project: {
@@ -31,10 +32,13 @@ interface ProjectOverviewProps {
   onOpenUploadDialog: () => void;
 }
 
+/** One survey and its record count, merged across every version. */
 interface SurveyStats {
+  /** The lineage's stable code. */
   id: string;
   name: string;
   display_name: string;
+  versionCount: number;
   recordCount: number;
 }
 
@@ -45,25 +49,31 @@ const ProjectOverview = ({ project, stats, onTabChange, onOpenUploadDialog }: Pr
   const { data: surveyStats } = useQuery({
     queryKey: ['surveyStats', project.id],
     queryFn: async (): Promise<SurveyStats[]> => {
-      // Get all surveys for the project
+      // Get all survey versions for the project, grouped into the surveys
+      // they are versions of -- counts are per SURVEY here, matching the Data
+      // tab. Listing versions separately would report one study's data as two
+      // unrelated totals, which is the split this grouping exists to undo.
       const { data: surveys } = await supabase
         .from('survey_packages')
-        .select('id, name, display_name')
+        .select('id, name, display_name, survey_code, version, version_date')
         .eq('project_id', project.id)
         .order('version_date', { ascending: false });
 
       if (!surveys) return [];
 
-      // Get record count for each survey
+      // Get record count for each survey, across all of its versions
       const surveysWithCounts = await Promise.all(
-        surveys.map(async (survey) => {
+        groupByLineage(surveys).map(async (lineage) => {
           const { count } = await supabase
             .from('submissions')
             .select('*', { count: 'exact', head: true })
-            .eq('survey_package_id', survey.id);
+            .in('survey_package_id', lineage.versions.map((v) => v.id));
 
           return {
-            ...survey,
+            id: lineage.surveyCode,
+            name: lineage.surveyCode,
+            display_name: lineage.latest.display_name,
+            versionCount: lineage.versions.length,
             recordCount: count || 0
           };
         })
@@ -155,7 +165,10 @@ const ProjectOverview = ({ project, stats, onTabChange, onOpenUploadDialog }: Pr
                     <Package className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">{survey.display_name}</p>
-                      <p className="text-sm text-muted-foreground">{survey.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {survey.name}
+                        {survey.versionCount > 1 && ` · ${survey.versionCount} versions`}
+                      </p>
                     </div>
                   </div>
                   <Badge variant="secondary">

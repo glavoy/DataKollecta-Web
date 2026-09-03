@@ -241,7 +241,7 @@ const FormManifestEditor = ({ form, allForms, open, onOpenChange, onSave, readOn
         {readOnly && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2 mb-1">
             <Lock className="h-4 w-4 flex-shrink-0" />
-            <span>This survey is locked and can no longer be edited. Duplicate it to make changes.</span>
+            <span>This survey is locked and can no longer be edited. Use New Version to revise it -- the revision collects into the same data.</span>
           </div>
         )}
 

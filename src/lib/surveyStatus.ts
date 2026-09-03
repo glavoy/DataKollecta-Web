@@ -57,7 +57,7 @@ export const STATUS_LABEL: Record<SurveyStatus, string> = {
 export const STATUS_DESCRIPTION: Record<SurveyStatus, string> = {
   draft: 'Being built. Not available on any phone.',
   test: 'Downloadable, shown to testers as "[TEST] ...". Still editable.',
-  deployed: 'Live in the field. Locked -- questions can no longer change. Revise by duplicating.',
+  deployed: 'Live in the field. Locked -- questions can no longer change. Revise with New Version.',
   complete: 'Data collection finished. No longer downloadable. Locked; data is retained.',
 };
 

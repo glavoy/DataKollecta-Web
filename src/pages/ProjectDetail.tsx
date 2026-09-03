@@ -47,7 +47,10 @@ import {
   Database,
   Users,
   UserCog,
-  Settings
+  Settings,
+  GitBranch,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -55,6 +58,7 @@ import { useToast } from "@/hooks/use-toast";
 import JSZip from "jszip";
 import { parseSurveyDocument } from "@/lib/xmlParser";
 import { surveyService } from "@/services/surveyService";
+import { groupByLineage, formatVersionLabel } from "@/lib/surveyVersion";
 import { projectMemberService } from "@/services/projectMemberService";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 import {
@@ -100,6 +104,8 @@ interface SurveyPackage {
   created_at: string;
   archived_at: string | null;
   copied_from: string | null;
+  survey_code: string;
+  version: number;
 }
 
 interface ProjectStats {
@@ -161,6 +167,15 @@ const ProjectDetail = () => {
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [surveyToDuplicate, setSurveyToDuplicate] = useState<SurveyPackage | null>(null);
   const [surveyForTransition, setSurveyForTransition] = useState<{ survey: SurveyPackage; next: SurveyStatus } | null>(null);
+  // Older versions are collapsed under their latest by default -- a long-running
+  // survey accumulates them, and the latest is what people act on.
+  const [expandedLineages, setExpandedLineages] = useState<Set<string>>(new Set());
+  const [creatingVersionFor, setCreatingVersionFor] = useState<string | null>(null);
+  // Ticked in the deploy dialog to retire the currently-deployed version at the
+  // same time. Unchecked by default: two versions deployed at once is a
+  // supported state, not a mistake -- field teams in different regions start at
+  // different times, and one may need to finish on the old version.
+  const [retireSiblingOnDeploy, setRetireSiblingOnDeploy] = useState(false);
   // Archiving a survey that's still deployed doesn't stop phones downloading
   // it -- that's what "Complete" is for. Confirm before archiving one of
   // those, since it's easy to assume archiving hides it from devices too.
@@ -228,7 +243,10 @@ const ProjectDetail = () => {
         .eq('project_id', projectData.id);
 
       setStats({
-        surveysCount: surveysData?.length || 0,
+        // Surveys, not survey versions -- the surveys list groups versions
+        // under one entry, so counting rows here would disagree with what is
+        // on screen the moment a survey has a second version.
+        surveysCount: new Set((surveysData ?? []).map((s) => s.survey_code)).size,
         submissionsCount: submissionsCount || 0,
         formsCount: formsCount || 0,
         fieldTeamCount: fieldTeamCount || 0,
@@ -287,6 +305,55 @@ const ProjectDetail = () => {
     }
   };
 
+  /**
+   * The OTHER versions of this survey that are currently deployed. Used to
+   * offer -- never to force -- retiring them when a new version goes live.
+   */
+  const deployedSiblings = (survey: SurveyPackage) =>
+    surveys.filter(
+      (s) => s.survey_code === survey.survey_code && s.id !== survey.id && s.status === 'deployed'
+    );
+
+  /**
+   * Starts the next version of a survey: a fresh editable draft that belongs to
+   * the same survey and collects into the same dataset. This is the path for
+   * revising a deployed survey -- Duplicate, by contrast, forks a separate
+   * study with its own database and its own data.
+   *
+   * No dialog: unlike a duplicate, there is nothing to choose. The Survey ID is
+   * minted from the lineage and the database name is inherited, precisely so
+   * the data stays together.
+   */
+  const handleCreateVersion = async (survey: SurveyPackage) => {
+    if (!project || !user?.id) return;
+    try {
+      setCreatingVersionFor(survey.id);
+      const saved = await surveyService.createSurveyVersion({
+        sourceId: survey.id,
+        projectId: project.id,
+        userId: user.id,
+      });
+      toast({
+        title: `Version ${saved.version} created`,
+        description: `A draft copy of "${survey.display_name}" is ready to edit. It collects ` +
+          `into the same data as the earlier versions.`,
+      });
+      navigate(`/app/projects/${project.slug}/surveys/${saved.id}`);
+    } catch (error: unknown) {
+      console.error("Create version error:", error);
+      toast({
+        title: "Could not create a new version",
+        description:
+          translateSurveyWriteError(error) ??
+          (error instanceof Error ? error.message : null) ??
+          "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingVersionFor(null);
+    }
+  };
+
   const handleTransitionStatus = async (survey: SurveyPackage, next: SurveyStatus) => {
     try {
       // The designer's own Save/Publish button blocks a status move to
@@ -312,11 +379,27 @@ const ProjectDetail = () => {
       }
 
       await surveyService.updateSurveyStatus(survey.id, next);
+
+      // Retiring the previous version is an OPTION, never automatic. Two
+      // versions of one survey being deployed at once is legitimate -- teams
+      // in different regions run to different timelines -- so this only fires
+      // when the box in the deploy dialog was ticked.
+      const retired: string[] = [];
+      if (next === 'deployed' && retireSiblingOnDeploy) {
+        for (const sibling of deployedSiblings(survey)) {
+          await surveyService.updateSurveyStatus(sibling.id, 'complete');
+          retired.push(`v${sibling.version}`);
+        }
+      }
+
       toast({
         title: "Status updated",
-        description: `"${survey.display_name}" is now ${STATUS_LABEL[next].toLowerCase()}.`,
+        description: `"${survey.display_name}" v${survey.version} is now ` +
+          `${STATUS_LABEL[next].toLowerCase()}.` +
+          (retired.length > 0 ? ` ${retired.join(', ')} moved to complete.` : ''),
       });
       setSurveyForTransition(null);
+      setRetireSiblingOnDeploy(false);
       fetchProjectData();
     } catch (error: any) {
       console.error("Status update error:", error);
@@ -503,6 +586,27 @@ const ProjectDetail = () => {
         }
       }
 
+      // Which survey is this a version OF?
+      //
+      // Matched on the manifest's databaseName alone -- never on a naming
+      // convention and never on surveyId -- because databaseName is the thing
+      // that actually decides data continuity on the device: DbService opens
+      // one SQLite file per databaseName, so two packages declaring the same
+      // one ARE the same dataset whatever they are called.
+      //
+      // This is a determination, not a question put to the user. A shared
+      // databaseName means a shared file on every phone; letting an unrelated
+      // survey claim it produces colliding tables and a shared subject-ID
+      // counter. There is deliberately no "import as a separate survey"
+      // escape hatch here -- enforce_survey_database_binding refuses it at the
+      // database anyway, and the only correct fix is a different databaseName
+      // in the package's own SurveyGen config.json.
+      const lineage = manifest.databaseName
+        ? await surveyService.findLineageByDatabaseName(project.id, manifest.databaseName)
+        : null;
+      const surveyCode = lineage?.surveyCode ?? surveyId;
+      const version = lineage?.nextVersion ?? 1;
+
       // Use surveyId from manifest as the storage filename (consistent with surveyService.ts)
       const sanitizedSurveyId = surveyId.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
       const filePath = `${project.id}/${sanitizedSurveyId}.zip`;
@@ -522,8 +626,16 @@ const ProjectDetail = () => {
         .from('survey_packages')
         .insert({
           project_id: project.id,
+          // The manifest's surveyId verbatim, even for a version. It is
+          // already the zip filename and the folder the app extracts into,
+          // and db_service.dart resolves a survey's XML at
+          // `surveys/<surveyId>/<file>` -- rewriting it to `code_vN` would
+          // break that invariant on every device. `name` only has to be
+          // unique; `version` is what orders the lineage.
           name: surveyId,
-          display_name: manifest.surveyName || surveyId,
+          display_name: lineage?.displayName ?? (manifest.surveyName || surveyId),
+          survey_code: surveyCode,
+          version: version,
           version_date: new Date().toISOString(),
           description: uploadDescription || manifest.description || "",
           zip_file_path: filePath,
@@ -534,6 +646,7 @@ const ProjectDetail = () => {
           // alongside it; both removed.)
           status: 'draft',
           created_by: user?.id,
+          copied_from: lineage?.latestId ?? null,
         })
         .select()
         .single();
@@ -599,10 +712,19 @@ const ProjectDetail = () => {
         if (crfError) throw crfError;
       }
 
+      // Say plainly when a package joined an existing survey rather than
+      // creating a new one. The user was not asked, so they have to be told --
+      // and told the one thing that would change the outcome (a different
+      // databaseName in the package's own SurveyGen config.json).
       toast({
-        title: "Success",
-        description: `Survey uploaded as a draft. ${crfsToInsert.length} form(s) processed. ` +
-          `Promote it from the surveys list when it's ready.`,
+        title: lineage ? `Added as version ${version}` : "Success",
+        description: lineage
+          ? `This package declares the same database as "${lineage.displayName}", so it was ` +
+            `added as version ${version} of that survey and will collect into the same data. ` +
+            `${crfsToInsert.length} form(s) processed. To make it a separate survey instead, ` +
+            `give it a different databaseName in its SurveyGen config.json and upload again.`
+          : `Survey uploaded as a draft. ${crfsToInsert.length} form(s) processed. ` +
+            `Promote it from the surveys list when it's ready.`,
       });
 
       setIsUploadOpen(false);
@@ -833,37 +955,77 @@ const ProjectDetail = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Survey Name</TableHead>
-                      <TableHead>Version Date</TableHead>
+                      <TableHead>Version</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {surveys
-                      .filter((survey) => {
+                    {groupByLineage(
+                      surveys.filter((survey) => {
                         if (archiveFilter === 'all') return true;
                         if (archiveFilter === 'archived') return !!survey.archived_at;
                         return !survey.archived_at;
                       })
-                      .map((survey) => {
-                      const sourceName = survey.copied_from
-                        ? surveys.find(s => s.id === survey.copied_from)?.display_name
+                    ).flatMap((lineage) => {
+                      const hasHistory = lineage.versions.length > 1;
+                      const expanded = expandedLineages.has(lineage.surveyCode);
+                      // Older versions stay collapsed until asked for; the
+                      // latest is what people act on.
+                      const shown = expanded ? lineage.versions : [lineage.latest];
+                      const deployedCount = lineage.versions.filter((v) => v.status === 'deployed').length;
+
+                      return shown.map((survey) => {
+                      const isLatest = survey.id === lineage.latest.id;
+                      // "Copied from" is about FORKS. A version's copied_from
+                      // points at its own predecessor, which the lineage
+                      // grouping already shows -- repeating it as provenance
+                      // would just be noise.
+                      const source = survey.copied_from
+                        ? surveys.find(s => s.id === survey.copied_from)
                         : null;
+                      const sourceName =
+                        source && source.survey_code !== survey.survey_code ? source.display_name : null;
                       const legalNext = LEGAL_TRANSITIONS[survey.status] ?? [];
 
                       return (
-                      <TableRow key={survey.id}>
+                      <TableRow key={survey.id} className={isLatest ? undefined : 'bg-muted/30'}>
                         <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{survey.display_name}</span>
+                          <div className={`flex flex-col ${isLatest ? '' : 'pl-6'}`}>
+                            <span className="flex items-center gap-1.5">
+                              {isLatest && hasHistory && (
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-foreground"
+                                  aria-expanded={expanded}
+                                  aria-label={expanded
+                                    ? `Hide earlier versions of ${survey.display_name}`
+                                    : `Show ${lineage.versions.length - 1} earlier version(s) of ${survey.display_name}`}
+                                  onClick={() => setExpandedLineages((prev) => {
+                                    const nextSet = new Set(prev);
+                                    if (nextSet.has(lineage.surveyCode)) nextSet.delete(lineage.surveyCode);
+                                    else nextSet.add(lineage.surveyCode);
+                                    return nextSet;
+                                  })}
+                                >
+                                  {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
+                              )}
+                              {survey.display_name}
+                            </span>
                             <span className="text-xs text-muted-foreground">{survey.name}</span>
+                            {isLatest && hasHistory && !expanded && (
+                              <span className="text-xs text-muted-foreground">
+                                {lineage.versions.length} versions, one dataset
+                              </span>
+                            )}
                             {sourceName && (
                               <span className="text-xs text-muted-foreground">Copied from {sourceName}</span>
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          {new Date(survey.version_date).toLocaleDateString()}
+                          {formatVersionLabel(survey.version, survey.version_date)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5">
@@ -873,6 +1035,16 @@ const ProjectDetail = () => {
                             {survey.archived_at && (
                               <Badge variant="outline" className={ARCHIVED_BADGE_CLASS}>
                                 Archived
+                              </Badge>
+                            )}
+                            {survey.status === 'deployed' && deployedCount > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs flex-shrink-0"
+                                title={`${deployedCount} versions of this survey are deployed at once. ` +
+                                  `This is allowed -- teams on different timelines can run different versions.`}
+                              >
+                                {deployedCount} live
                               </Badge>
                             )}
                           </div>
@@ -905,9 +1077,16 @@ const ProjectDetail = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    disabled={creatingVersionFor === survey.id}
+                                    onClick={() => handleCreateVersion(survey)}
+                                  >
+                                    <GitBranch className="h-4 w-4 mr-2" />
+                                    New Version
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => setSurveyToDuplicate(survey)}>
                                     <Copy className="h-4 w-4 mr-2" />
-                                    Duplicate
+                                    Duplicate as new survey
                                   </DropdownMenuItem>
                                   {legalNext.length > 0 && <DropdownMenuSeparator />}
                                   {legalNext.map((next) => (
@@ -954,6 +1133,7 @@ const ProjectDetail = () => {
                         </TableCell>
                       </TableRow>
                       );
+                      });
                     })}
                   </TableBody>
                 </Table>
@@ -1049,10 +1229,25 @@ const ProjectDetail = () => {
                 {surveyForTransition?.next === 'deployed' && (
                   <>
                     Deploying locks this survey -- its questions can never be changed again. To
-                    make changes later you will duplicate it under a new Survey ID. Phones will
+                    make changes later, use New Version: the revision keeps the same database, so
+                    its data joins this one rather than starting a second dataset. Phones will
                     download it at their next login.
                     {surveyForTransition.survey.status === 'draft' && (
                       <> This survey has not been through Test.</>
+                    )}
+                    {deployedSiblings(surveyForTransition.survey).length > 0 && (
+                      <>
+                        {' '}
+                        <strong>
+                          {deployedSiblings(surveyForTransition.survey)
+                            .map((v) => `v${v.version}`)
+                            .join(', ')}{' '}
+                          {deployedSiblings(surveyForTransition.survey).length === 1 ? 'is' : 'are'} already
+                          deployed
+                        </strong>
+                        , so both will be offered to phones. That is fine if teams are on different
+                        timelines -- their data goes to the same place either way.
+                      </>
                     )}
                   </>
                 )}
@@ -1067,8 +1262,30 @@ const ProjectDetail = () => {
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {surveyForTransition?.next === 'deployed' &&
+              deployedSiblings(surveyForTransition.survey).length > 0 && (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={retireSiblingOnDeploy}
+                    onChange={(e) => setRetireSiblingOnDeploy(e.target.checked)}
+                  />
+                  <span>
+                    Also move{' '}
+                    {deployedSiblings(surveyForTransition.survey)
+                      .map((v) => `v${v.version}`)
+                      .join(', ')}{' '}
+                    to Complete. Phones stop being offered{' '}
+                    {deployedSiblings(surveyForTransition.survey).length === 1 ? 'it' : 'them'}; devices
+                    that already have{' '}
+                    {deployedSiblings(surveyForTransition.survey).length === 1 ? 'it' : 'them'} keep
+                    collecting and syncing.
+                  </span>
+                </label>
+              )}
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setRetireSiblingOnDeploy(false)}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => surveyForTransition && handleTransitionStatus(surveyForTransition.survey, surveyForTransition.next)}
               >

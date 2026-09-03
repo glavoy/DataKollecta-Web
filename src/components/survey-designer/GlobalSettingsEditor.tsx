@@ -37,6 +37,10 @@ interface GlobalSettingsEditorProps {
     /** True for a locked (deployed/complete) survey -- every field renders disabled and the
      *  footer offers only Close, no Save. */
     readOnly?: boolean;
+    /** Which version of its survey this package is. Versions after the first inherit their
+     *  Survey ID and database name from the lineage, so those two fields render read-only
+     *  even while the rest of the draft is freely editable. */
+    surveyVersion?: number;
 }
 
 // Info tooltip component
@@ -53,8 +57,10 @@ const InfoTooltip = ({ text }: { text: string }) => (
     </TooltipProvider>
 );
 
-const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readOnly }: GlobalSettingsEditorProps) => {
+const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readOnly, surveyVersion = 1 }: GlobalSettingsEditorProps) => {
     const [editedPackage, setEditedPackage] = useState<SurveyPackage>({ ...surveyPackage });
+    // Version 1 owns its identity; every later version inherits it.
+    const isRevision = surveyVersion > 1;
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -168,7 +174,7 @@ const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readO
                 {readOnly && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2 mb-1">
                         <Lock className="h-4 w-4 flex-shrink-0" />
-                        <span>This survey is locked and can no longer be edited. Duplicate it to make changes.</span>
+                        <span>This survey is locked and can no longer be edited. Use New Version to revise it -- the revision collects into the same data.</span>
                     </div>
                 )}
 
@@ -196,29 +202,44 @@ const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readO
                                 />
                             </div>
 
+                            {isRevision && (
+                                <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted rounded-md px-3 py-2">
+                                    <Lock className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                    <span>
+                                        This is version {surveyVersion} of an existing survey. Its Survey ID and
+                                        database name belong to the survey as a whole, so that every version
+                                        collects into the same dataset -- changing them here would split the data.
+                                    </span>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <div className="flex items-center">
                                     <Label htmlFor="surveyId">Survey ID (Unique)</Label>
-                                    <InfoTooltip text="Unique identifier for the survey. This becomes the zip filename and is used internally. Include version info here (e.g., geoff_css_2026-01-24 or geoff_css_v1.2)." />
+                                    <InfoTooltip text="Unique identifier for the survey. This becomes the zip filename and the folder the mobile app extracts into. Assigned automatically for each version -- use New Version to revise a deployed survey rather than encoding a version into this ID by hand." />
                                 </div>
                                 <Input
                                     id="surveyId"
                                     value={editedPackage.surveyId}
                                     onChange={(e) => update('surveyId', e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '_'))}
                                     placeholder="e.g., household_survey_2024"
+                                    readOnly={isRevision}
+                                    disabled={isRevision}
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <div className="flex items-center">
                                     <Label htmlFor="databaseName">Database Name</Label>
-                                    <InfoTooltip text="Name of the SQLite database file created on the mobile device. Usually matches the survey ID with .sqlite extension." />
+                                    <InfoTooltip text="Name of the SQLite database file created on the mobile device. Every version of a survey shares one database file -- that is what keeps their data together and the subject-ID counter continuous." />
                                 </div>
                                 <Input
                                     id="databaseName"
                                     value={editedPackage.databaseName || ''}
                                     onChange={(e) => update('databaseName', e.target.value)}
                                     placeholder="e.g., household_db.sqlite"
+                                    readOnly={isRevision}
+                                    disabled={isRevision}
                                 />
                             </div>
                         </div>

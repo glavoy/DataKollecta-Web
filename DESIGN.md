@@ -26,7 +26,7 @@ connection and may arrive in batches, sometimes days later.
 
 | Concept | Term used in this codebase | Notes |
 |---|---|---|
-| A survey ZIP package | **Survey** (`survey_packages`) | The overall study design, versioned |
+| A survey ZIP package | **Survey version** (`survey_packages`) | One row per version. Rows sharing a `survey_code` are versions of one survey |
 | An individual XML form within a survey | **Form** / **CRF** (`crfs`) | "CRF" (Case Report Form) shows up in field-research contexts; "Form" is the generic UI term |
 | Uploaded data records | **Submissions** (`submissions`) | One row per completed form instance |
 | Web portal users | **Project Members** (`project_members`) | People who log into this site |
@@ -88,6 +88,17 @@ Real tables, in the order data actually flows through them:
   role. If you're not in this table for a project, you can't see it — this is what
   RLS checks everywhere else.
 - **`survey_packages`** — one row per uploaded/published survey version (the ZIP).
+  Versions of one survey share a `survey_code` and are ordered by `version`
+  (1, 2, 3…); `version_date` is a display date, not an ordering key. Every
+  version of a code declares the **same** manifest `databaseName`, enforced by
+  `enforce_survey_database_binding` — that shared SQLite file is what makes
+  their data one dataset on the device, so the portal groups and exports them
+  together. Two different `survey_code`s may never claim one `databaseName`.
+  A survey is revised with **New Version** (same code, same database, data
+  continues); **Duplicate** is the other operation — it forks a separate study
+  with its own code, database and data. Versions are locked and un-locked
+  independently, and several versions of one survey may be `deployed` at once,
+  which is how teams on different timelines run different versions.
 - **`crfs`** — one row per form within a survey package, describing its fields,
   ID-generation config, and parent/child linking.
 - **`app_credentials`** — field-team login codes (distinct from `profiles`).

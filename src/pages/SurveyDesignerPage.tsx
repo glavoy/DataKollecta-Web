@@ -20,6 +20,11 @@ const SurveyDesignerPage = () => {
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
   // A brand-new (not-yet-saved) survey is always a draft.
   const [surveyStatus, setSurveyStatus] = useState<SurveyStatus>('draft');
+  // Which version of its survey this package is. Versions after the first
+  // inherit their Survey ID and database name from the lineage, so the
+  // designer renders those two fields read-only rather than letting an edit
+  // silently detach a revision from its dataset.
+  const [surveyVersion, setSurveyVersion] = useState(1);
   const [loading, setLoading] = useState(true);
   // Which survey (or 'new') the currently-loaded/loading package belongs to.
   // Lets the load effect tell "the route actually changed, we need a fresh
@@ -70,10 +75,11 @@ const SurveyDesignerPage = () => {
         if (surveyId) {
           // Edit existing survey
           try {
-            const { pkg, serverUpdatedAt: updatedAt, status } = await surveyService.getSurveyPackage(surveyId);
+            const { pkg, serverUpdatedAt: updatedAt, status, version } = await surveyService.getSurveyPackage(surveyId);
             setInitialPackage(pkg);
             setServerUpdatedAt(updatedAt);
             setSurveyStatus(status);
+            setSurveyVersion(version);
           } catch (err) {
             console.error('Error loading survey:', err);
             toast({
@@ -93,6 +99,7 @@ const SurveyDesignerPage = () => {
           });
           setServerUpdatedAt(null);
           setSurveyStatus('draft');
+          setSurveyVersion(1);
         }
 
       } catch (error: any) {
@@ -139,6 +146,7 @@ const SurveyDesignerPage = () => {
           serverUpdatedAt={serverUpdatedAt}
           surveyRecordId={surveyId}
           surveyStatus={surveyStatus}
+          surveyVersion={surveyVersion}
           onStatusChange={setSurveyStatus}
         />
       </div>

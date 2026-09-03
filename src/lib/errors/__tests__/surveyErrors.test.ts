@@ -34,7 +34,7 @@ describe('surveyIdConflictMessage', () => {
     expect(msg).toContain('prism_css_2026_08_22');
     expect(msg).toContain('PRISM CSS Household Survey');
     expect(msg).toContain('this project');
-    expect(msg).toContain('Duplicate');
+    expect(msg).toContain('New Version');
     // Explains WHY -- the routing mechanism -- not just that it's a conflict.
     expect(msg).toMatch(/manifest|rout/i);
   });
@@ -76,7 +76,31 @@ describe('translateSurveyWriteError', () => {
       message: 'Survey "x" is deployed and its content can no longer be changed.',
     });
     expect(msg).toMatch(/locked/i);
-    expect(msg).toMatch(/Duplicate/);
+    // Points at New Version, not Duplicate: a revision has to keep the same
+    // database to keep its data with the original's, which is exactly what
+    // Duplicate does not do.
+    expect(msg).toMatch(/New Version/);
+  });
+
+  it('explains a version declaring a different database name', () => {
+    const msg = translateSurveyWriteError({
+      code: '23514',
+      hint: 'sp_lineage_database_mismatch',
+      message: 'Survey "x" declares database "a.sqlite", but version "y" ...',
+    });
+    expect(msg).toMatch(/same database name/i);
+  });
+
+  it('explains a second survey claiming a database already in use', () => {
+    const msg = translateSurveyWriteError({
+      code: '23514',
+      hint: 'sp_database_in_use',
+      message: 'Database "a.sqlite" is already used by survey "y".',
+    });
+    expect(msg).toMatch(/cannot share one database/i);
+    // The two ways out, both of which are real: rename, or make it a version.
+    expect(msg).toMatch(/different database name/i);
+    expect(msg).toMatch(/version of the survey/i);
   });
 
   it('translates the delete-locked check violation via hint', () => {
@@ -119,6 +143,6 @@ describe('SurveyLockedError', () => {
     expect(err.status).toBe('deployed');
     expect(err.message).toContain('PRISM CSS Household Survey');
     expect(err.message).toMatch(/deployed/i);
-    expect(err.message).toMatch(/Duplicate/);
+    expect(err.message).toMatch(/New Version/);
   });
 });
