@@ -141,6 +141,35 @@ max_indexes = 5
 # Vector Buckets is available to Supabase Pro plan.
 # [storage.vector.buckets.documents-openai]
 
+# ---------------------------------------------------------------------------
+# THIS BLOCK CONFIGURES THE LOCAL STACK ONLY. DO NOT `supabase config push`.
+#
+# `supabase config push` sends the WHOLE [auth] tree -- all 55 settings below
+# -- to the linked project. It has no way to send only the ones you changed,
+# and this file has never been reconciled with production, so pushing it would
+# overwrite live settings with local-dev defaults. Five of them do real damage:
+#
+#   site_url / additional_redirect_urls  -> point at 127.0.0.1, so every
+#       production password-reset and confirmation email link would break
+#   [auth.email] enable_confirmations = false -> turns email verification OFF
+#       (Login.tsx tells new users to check their email, so production has it on)
+#   [auth.rate_limit] email_sent = 2 -> caps the project at 2 emails an HOUR,
+#       silently killing password resets after the second one
+#   [auth.email] max_frequency = "1s" -> reset emails once a second, an
+#       abuse vector
+#
+# So production auth policy is changed in the Supabase DASHBOARD, and the
+# values here are the local mirror of it. Where the two must agree, say so in
+# a comment on the setting (see minimum_password_length and
+# secure_password_change), and keep src/lib/passwordPolicy.ts in step -- its
+# test reads this file.
+#
+# Making this file safely pushable is worth doing, and it is a real task: read
+# the live auth config, correct the five settings above to production values,
+# commit that, and only then is `config push` the right tool. Until someone
+# does that, this file is not the source of truth for production and must not
+# be read as if it were.
+# ---------------------------------------------------------------------------
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
