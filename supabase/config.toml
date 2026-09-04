@@ -166,9 +166,21 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+#
+# 10, to match the floor `create_app_credential` enforces on field-worker
+# credentials. The two surfaces disagreed: a field worker's password had to be
+# 10 characters and a portal account's -- which can read every project's
+# collected data -- only 6. Enforced here rather than in the React pages
+# because those are client-side and `supabase.auth.updateUser` can be called
+# directly; this is the Auth service refusing it.
+minimum_password_length = 10
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
+#
+# Deliberately left empty. A 10-character minimum with no composition rule is
+# the better policy for this user population; every supported value here
+# pushes people toward `Password1!`, which is worse than a long passphrase and
+# harder to remember.
 password_requirements = ""
 
 [auth.rate_limit]
@@ -202,7 +214,14 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+#
+# On. Without it, `supabase.auth.updateUser({ password })` authorises on the
+# active session alone, so a hijacked session escalates straight to account
+# takeover -- change the password and the real owner is locked out of their own
+# projects. Set here rather than by adding a current-password field to
+# AccountPage, because a client-side check is exactly what a stolen session
+# skips.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.

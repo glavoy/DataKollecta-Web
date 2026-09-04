@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@/lib/passwordPolicy";
 
 const Login = () => {
   const location = useLocation();
@@ -63,8 +64,8 @@ const Login = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(PASSWORD_TOO_SHORT);
       setIsLoading(false);
       return;
     }
@@ -181,7 +182,11 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  // Only while signing UP. This same input is the sign-in
+                  // password box -- a minLength here would refuse to submit
+                  // the login form for any existing account with a shorter
+                  // password, which is a lockout, not a policy.
+                  minLength={isSignUp ? PASSWORD_MIN_LENGTH : undefined}
                 />
               </div>
               {isSignUp && (
@@ -193,7 +198,7 @@ const Login = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                   />
                 </div>
               )}

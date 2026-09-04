@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@/lib/passwordPolicy";
 
 /** One row of the project_members + projects join this page reads. */
 interface ProjectMembership {
@@ -98,10 +99,10 @@ const AccountPage = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       toast({
         title: "Error",
-        description: "Password must be at least 6 characters.",
+        description: `${PASSWORD_TOO_SHORT}.`,
         variant: "destructive",
       });
       return;

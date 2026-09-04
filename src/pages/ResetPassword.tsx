@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Lock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@/lib/passwordPolicy";
 
 const ResetPassword = () => {
     const [password, setPassword] = useState("");
@@ -27,8 +28,8 @@ const ResetPassword = () => {
             return;
         }
 
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+        if (password.length < PASSWORD_MIN_LENGTH) {
+            setError(PASSWORD_TOO_SHORT);
             setIsLoading(false);
             return;
         }
@@ -88,7 +89,7 @@ const ResetPassword = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    minLength={6}
+                                    minLength={PASSWORD_MIN_LENGTH}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -99,7 +100,7 @@ const ResetPassword = () => {
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     required
-                                    minLength={6}
+                                    minLength={PASSWORD_MIN_LENGTH}
                                 />
                             </div>
                             <Button type="submit" className="w-full" disabled={isLoading || success}>
