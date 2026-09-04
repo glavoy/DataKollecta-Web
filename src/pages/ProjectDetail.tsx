@@ -63,7 +63,6 @@ import {
 import { surveyService } from "@/services/surveyService";
 import { groupByLineage, formatVersionLabel } from "@/lib/surveyVersion";
 import { projectMemberService } from "@/services/projectMemberService";
-import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
 import {
   SurveyStatus,
   LEGAL_TRANSITIONS,
@@ -477,67 +476,14 @@ const ProjectDetail = () => {
         return;
       }
 
-      // Delete the zip file from storage first
-      if (surveyToDelete && surveyToDelete.zip_file_path) {
-        const { error: storageError } = await supabase.storage
-          .from('surveys')
-          .remove([surveyToDelete.zip_file_path]);
-
-        if (storageError) {
-          console.error("Error deleting file from storage:", storageError);
-          // Don't throw - continue with database deletion even if storage fails
-          // The file might already be deleted or not exist
-        }
-      }
-
-      // Delete dependent Submissions and History. The submissions delete
-      // below isn't row-capped (a DELETE with no representation isn't
-      // subject to PostgREST's max_rows response cap), but this SELECT is
-      // -- so it must be paged, or a survey with more than 1000 submissions
-      // only has the first 1000 records' formchanges cleaned up, leaving
-      // the rest to later brick project deletion (formchanges has no
-      // ON DELETE CASCADE from projects).
-      const submissionsData = await fetchAllRows<{ id: string; local_unique_id: string | null }>(
-        (from, to) =>
-          supabase
-            .from('submissions')
-            .select('id, local_unique_id')
-            .eq('survey_package_id', surveyId)
-            .range(from, to),
-      );
-
-      if (submissionsData.length > 0) {
-        const recordUuids = submissionsData
-          .map(s => s.local_unique_id)
-          .filter((id): id is string => id !== null);
-
-        if (recordUuids.length > 0) {
-          // Chunked -- 1000+ UUIDs in one .in() exceeds a GET querystring's
-          // practical length ceiling and fails as a 414.
-          for (const chunk of chunkIds(recordUuids)) {
-            await supabase.from('formchanges').delete().in('record_uuid', chunk);
-          }
-        }
-
-        await supabase
-          .from('submissions')
-          .delete()
-          .eq('survey_package_id', surveyId);
-      }
-
-      // Delete CRFs
-      await supabase
-        .from('crfs')
-        .delete()
-        .eq('survey_package_id', surveyId);
-
-      // Delete Survey Package
-      const { error } = await supabase
-        .from('survey_packages')
-        .delete()
-        .eq('id', surveyId);
-
-      if (error) throw error;
+      // Storage zip, formchanges, submissions, crfs, then the package row.
+      // The order matters and the paging inside it is load-bearing; both live
+      // with the sequence rather than here. Note this runs only after the
+      // preflight above -- see that method's doc comment for why.
+      await surveyService.deleteSurveyCascade({
+        surveyId,
+        zipFilePath: surveyToDelete?.zip_file_path ?? null,
+      });
 
       toast({
         title: "Survey deleted",
