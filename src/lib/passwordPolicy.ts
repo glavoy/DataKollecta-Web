@@ -34,6 +34,19 @@
  * is the whole remedy -- signing in requires the current password, which is
  * exactly the proof the setting asks for.
  *
+ * Composition rules were considered and rejected on evidence, not taste.
+ * Measured against a local stack, BOTH of Supabase's stricter options reject
+ * `correct horse battery staple` (28 characters, for want of a digit) and
+ * accept `Password1!` -- so the rule refuses the strong password and waves
+ * through the one in every cracking wordlist. That is why NIST SP 800-63B
+ * recommends against composition rules outright. Length is the lever here.
+ *
+ * The setting that WOULD catch `Password1!` is Supabase's leaked-password
+ * check (HaveIBeenPwned). It requires the Pro plan, which this project is not
+ * on, so it is unavailable rather than declined -- worth revisiting if the
+ * plan changes. MFA (see the portal's ToDo.md) is worth more than all of
+ * this combined, since it is the only one that survives a stolen password.
+ *
  * Field-worker credentials are untouched by any of this. The phone app goes
  * through the `app-login` Edge Function to `verify_app_credential`, which
  * bcrypts against `app_credentials`; Supabase Auth is not in that path, and
