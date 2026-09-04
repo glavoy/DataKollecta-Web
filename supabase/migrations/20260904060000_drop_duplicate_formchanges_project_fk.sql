@@ -1,0 +1,29 @@
+-- `formchanges.project_id` carries TWO foreign keys to `projects`, and only
+-- one of them cascades.
+--
+--   formchanges_project_id_fkey  ON DELETE CASCADE   (fixed in 20260822055223)
+--   fk_project                   ON DELETE NO ACTION (never touched)
+--
+-- Postgres enforces both, so the second one still blocks the delete. That
+-- means 20260822055223_cascade_formchanges_project_delete.sql did not actually
+-- achieve what it set out to do: a project with even one formchanges row is
+-- still permanently undeletable, exactly as that migration described --
+-- "the project is left existing, empty, and permanently undeletable, since
+-- retrying hits the exact same orphaned rows every time".
+--
+-- Reproduced on a fresh `supabase db reset` before writing this:
+--
+--   delete from public.projects where id = '...';
+--   ERROR: update or delete on table "projects" violates foreign key
+--          constraint "fk_project" on table "formchanges"
+--
+-- Found by the Edge Function test suite, whose fixture teardown is a plain
+-- `delete from projects` -- the same single atomic delete the earlier
+-- migration promised would now be sufficient. The one test that writes a
+-- formchanges row was the only one that failed to clean up.
+--
+-- The two constraints are identical apart from the delete action, so this
+-- drops the redundant one rather than altering it. `formchanges_project_id_fkey`
+-- is kept because it is the one the schema's own naming convention produces
+-- and the one the previous migration already rewrote.
+ALTER TABLE "public"."formchanges" DROP CONSTRAINT IF EXISTS "fk_project";

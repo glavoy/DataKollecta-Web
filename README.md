@@ -42,3 +42,30 @@ See [DESIGN.md](DESIGN.md) for the full picture — system architecture, user ro
 *   `src/types`: TypeScript definitions for surveys, forms, and data structures.
 *   `src/hooks`: Custom React hooks (e.g., authentication, mobile detection).
 
+*   `supabase/functions`: The two Edge Functions the mobile app talks to
+    (`app-login`, `app-sync`), and their test suite.
+*   `supabase/migrations`: Database schema, RLS policies and RPCs, applied in order.
+
+## Verification
+
+```bash
+npm run lint            # eslint
+npx tsc --noEmit -p tsconfig.app.json   # neither lint nor build typechecks; this does
+npm run build           # vite
+npm test                # vitest -- pure functions in src/lib
+```
+
+`npm run build` uses Vite with the SWC plugin, which **strips types without
+checking them**, so a type error fails neither lint nor build. Run `tsc
+--noEmit` as well.
+
+The Edge Functions have their own suite, which needs a running local stack:
+
+```bash
+supabase start && supabase db reset
+supabase functions serve --no-verify-jwt    # in a second terminal
+npm run test:functions
+```
+
+See [supabase/functions/tests/README.md](supabase/functions/tests/README.md) for
+what it covers and why it is written against a real database rather than mocks.

@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "test:functions": "npx --yes deno test --allow-net --allow-env --allow-run supabase/functions/tests/",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
