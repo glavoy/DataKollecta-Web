@@ -55,7 +55,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from "jszip";
-import { parseSurveyDocument } from "@/lib/xmlParser";
+import {
+  readManifestFromZip,
+  buildCrfRows,
+  type UploadedManifest,
+} from "@/lib/surveyPackageUpload";
 import { surveyService } from "@/services/surveyService";
 import { groupByLineage, formatVersionLabel } from "@/lib/surveyVersion";
 import { projectMemberService } from "@/services/projectMemberService";
@@ -106,16 +110,6 @@ interface SurveyPackage {
   copied_from: string | null;
   survey_code: string;
   version: number;
-}
-
-/** The parts of an uploaded survey_manifest.gistx this page reads. Untrusted
- *  input -- everything is optional and validated before use. */
-interface UploadedManifest {
-  surveyId?: string;
-  surveyName?: string;
-  databaseName?: string;
-  description?: string;
-  crfs?: Record<string, unknown>[];
 }
 
 interface ProjectStats {
@@ -570,34 +564,11 @@ const ProjectDetail = () => {
     try {
       setUploading(true);
 
-      const zip = new JSZip();
-      const loadedZip = await zip.loadAsync(uploadFile);
-
-      // A direct lookup rather than a forEach that mutates a variable.
-      // TypeScript cannot see that a callback ran, so under strict the
-      // variable stayed narrowed to `null` and the later `.async("string")`
-      // resolved against `never`. `JSZipObject.name` is the same relative
-      // path forEach hands out.
-      const manifestFile = Object.values(loadedZip.files).find((file) =>
-        file.name.toLowerCase().endsWith("survey_manifest.gistx")
-      );
-
-      if (!manifestFile) {
-        throw new Error("Invalid ZIP: survey_manifest.gistx is missing.");
-      }
-
-      const manifestContent = await manifestFile.async("string");
-      const manifest = JSON.parse(manifestContent);
-
-      if (!manifest.crfs || !Array.isArray(manifest.crfs) || manifest.crfs.length === 0) {
-        throw new Error("Invalid Manifest: 'crfs' array is missing or empty.");
-      }
-
-      // Get surveyId from manifest (this is the unique identifier)
-      const surveyId = manifest.surveyId;
-      if (!surveyId) {
-        throw new Error("Invalid Manifest: 'surveyId' is required.");
-      }
+      // Reads the manifest and validates it. `crfs` being present and
+      // non-empty is checked in there, next to the loop that consumes it --
+      // the two used to be in different functions, which is how a manifest
+      // that failed to parse typechecked fine and threw at runtime.
+      const { manifest, surveyId } = await readManifestFromZip(uploadFile);
 
       // Check if survey already exists - REJECT if it does. Covers both
       // unique indexes on survey_packages (project-scoped AND the global
@@ -730,57 +701,12 @@ const ProjectDetail = () => {
 
       if (dbError) throw dbError;
 
-      const crfsToInsert: Record<string, unknown>[] = [];
-
-      // `crfs` is optional on UploadedManifest, and the check that it is
-      // present and non-empty happens in the caller -- which is a different
-      // function, so nothing here guaranteed it. This is the exact shape H3
-      // predicted `strictNullChecks` would surface: a manifest that failed to
-      // parse typechecked fine and threw at runtime.
-      for (const crfEntry of manifest.crfs ?? []) {
-        const xmlFileName = `${crfEntry.tablename}.xml`;
-        const xmlFile = Object.values(loadedZip.files).find((file) =>
-          file.name.toLowerCase().endsWith(xmlFileName.toLowerCase())
-        );
-
-        if (!xmlFile) {
-          console.warn(`XML file ${xmlFileName} not found in ZIP.`);
-          continue;
-        }
-
-        const xmlContent = await xmlFile.async("string");
-        // Reserved system variables and the end screen are stripped here; they
-        // are re-added at generation time, so an imported package can be saved
-        // and re-exported without accumulating duplicates.
-        const { questions, endText } = parseSurveyDocument(xmlContent);
-
-        // Store additional form config in id_config._formConfig for retrieval
-        const formConfig = {
-          incrementField: crfEntry.incrementfield,
-          repeatCountField: crfEntry.repeat_count_field,
-          entry_condition: crfEntry.entry_condition,
-          endOfQuestionsText: endText,
-        };
-
-        crfsToInsert.push({
-          survey_package_id: surveyData.id,
-          project_id: project.id,
-          table_name: crfEntry.tablename,
-          display_name: crfEntry.displayname,
-          display_order: crfEntry.display_order || 0,
-          is_base: crfEntry.isbase === 1,
-          primary_key: crfEntry.primarykey || null,
-          linking_field: crfEntry.linkingfield || null,
-          parent_table: crfEntry.parenttable || null,
-          id_config: crfEntry.idconfig
-            ? { ...(crfEntry.idconfig as Record<string, unknown>), _formConfig: formConfig }
-            : { _formConfig: formConfig },
-          display_fields: crfEntry.display_fields || null,
-          auto_start_repeat: crfEntry.auto_start_repeat || 0,
-          repeat_enforce_count: crfEntry.repeat_enforce_count || 1,
-          fields: questions
-        });
-      }
+      const crfsToInsert = await buildCrfRows({
+        zip: loadedZip,
+        manifest,
+        surveyPackageId: surveyData.id,
+        projectId: project.id,
+      });
 
       if (crfsToInsert.length > 0) {
         const { error: crfError } = await supabase
