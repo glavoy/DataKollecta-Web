@@ -45,6 +45,43 @@ See [DESIGN.md](DESIGN.md) for the full picture — system architecture, user ro
 *   `supabase/functions`: The two Edge Functions the mobile app talks to
     (`app-login`, `app-sync`), and their test suite.
 *   `supabase/migrations`: Database schema, RLS policies and RPCs, applied in order.
+*   `supabase/config.toml`: Auth policy and service settings, for **both** the
+    local stack and production. See below.
+
+## Where auth policy lives
+
+`supabase/config.toml` -- not the Supabase dashboard. Password length, email
+confirmation, re-authentication on password change, OTP length, rate limits and
+MFA are all set there, reviewed in a diff like any other change, and applied
+with `supabase config push`.
+
+Two settings cannot be shared, because they are genuinely per-environment:
+`site_url` and `additional_redirect_urls`. The base `[auth]` block holds the
+**local** values for those two; `[remotes.production]` at the bottom of the file
+overrides them with the production ones. Everything else in the file is
+production's value, so a push should be a no-op.
+
+`config push` sends seven services, not just auth: api, db, db.ssl_enforcement,
+db.network_restrictions, auth, storage, and experimental.webhooks. There is no
+`--dry-run` flag and no `config pull`, but **the confirmation prompt is the dry
+run** -- push prints a per-service diff *before* asking, and sends nothing until
+you answer:
+
+```bash
+supabase config push        # read each diff; answer No to leave production alone
+```
+
+Two things to know before you run it:
+
+*   The prompt renders as `● Yes / ○ No` with **Yes preselected**. Pressing
+    Enter pushes. You have to arrow to No. On 2026-09-04 a run intended as a dry
+    run was Entered through, which turned email verification off in production
+    for ten minutes.
+*   It must print `Loading config override: [remotes.production]`. If that line
+    is absent the override did not apply and the diff you are looking at will
+    put localhost URLs into production.
+
+A clean state is every service reporting "is up to date."
 
 ## Verification
 

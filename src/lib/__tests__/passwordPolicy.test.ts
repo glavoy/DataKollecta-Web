@@ -7,15 +7,51 @@ import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "../passwordPolicy";
  * reads the rule out of the file so the two cannot drift -- a raised floor in
  * config.toml with a stale constant would show the user the wrong number and
  * let the form submit a password the Auth service then refuses.
+ *
+ * config.toml is also what `supabase config push` sends to production, so the
+ * value read here is production's, not just the local stack's.
  */
 const configToml = readFileSync("supabase/config.toml", "utf8");
 
+/**
+ * The base `[auth]` tree: from the `[auth]` header to the first section header
+ * that is not an `[auth.*]` subtable.
+ *
+ * This used to be a bare `/m` regex over the whole 17 KB file, under a comment
+ * claiming an `[auth]` scope it did not implement. That was harmless only
+ * because each key happened to occur once. It stopped being harmless when
+ * `[remotes.production.auth]` was added: a key set in both places would be
+ * read from whichever came first in the file, which is not necessarily the one
+ * that governs the stack under test.
+ */
+function baseAuthBlock(): string {
+  const lines = configToml.split("\n");
+  const start = lines.findIndex((line) => line.trim() === "[auth]");
+  if (start === -1) throw new Error("[auth] section not found in supabase/config.toml");
+
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith("[") && !line.startsWith("[auth.")) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join("\n");
+}
+
+const authBlock = baseAuthBlock();
+
 function authSetting(name: string): string {
-  // Only the [auth] block -- config.toml has other sections and some settings
-  // appear commented out elsewhere.
-  const match = configToml.match(new RegExp(`^${name}\\s*=\\s*(.+)$`, "m"));
-  if (!match) throw new Error(`${name} not found in supabase/config.toml`);
+  const match = authBlock.match(new RegExp(`^${name}\\s*=\\s*(.+)$`, "m"));
+  if (!match) throw new Error(`${name} not found in the [auth] block of supabase/config.toml`);
   return match[1].trim();
+}
+
+/** Everything from the first `[remotes...]` header to the end of the file. */
+function remoteOverrides(): string {
+  const index = configToml.search(/^\[remotes[.\]]/m);
+  return index === -1 ? "" : configToml.slice(index);
 }
 
 describe("password policy", () => {
@@ -37,5 +73,16 @@ describe("password policy", () => {
 
   it("names the number in the message the user actually reads", () => {
     expect(PASSWORD_TOO_SHORT).toContain(String(PASSWORD_MIN_LENGTH));
+  });
+
+  it("is not overridden per-environment by a [remotes.*] block", () => {
+    // `config push` merges [remotes.<name>] over the base config, so an
+    // override here would send production a different policy from the one the
+    // assertions above pin -- and this file, and passwordPolicy.ts, would
+    // quietly be describing only the local stack again. site_url and
+    // additional_redirect_urls are the only settings that may differ.
+    for (const key of ["minimum_password_length", "password_requirements", "secure_password_change"]) {
+      expect(remoteOverrides()).not.toMatch(new RegExp(`^\\s*${key}\\s*=`, "m"));
+    }
   });
 });

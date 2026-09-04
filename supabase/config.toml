@@ -142,33 +142,28 @@ max_indexes = 5
 # [storage.vector.buckets.documents-openai]
 
 # ---------------------------------------------------------------------------
-# THIS BLOCK CONFIGURES THE LOCAL STACK ONLY. DO NOT `supabase config push`.
+# THIS BLOCK IS PUSHED TO PRODUCTION. It is the source of truth for both stacks.
 #
-# `supabase config push` sends the WHOLE [auth] tree -- all 55 settings below
-# -- to the linked project. It has no way to send only the ones you changed,
-# and this file has never been reconciled with production, so pushing it would
-# overwrite live settings with local-dev defaults. Five of them do real damage:
+# The values below are production's, so `supabase config push` is safe: it
+# should report every service "up to date". Two keys cannot be shared, because
+# they are genuinely per-environment -- `site_url` and
+# `additional_redirect_urls` hold the LOCAL values here and are overridden with
+# the production ones in [remotes.production] at the bottom of this file.
 #
-#   site_url / additional_redirect_urls  -> point at 127.0.0.1, so every
-#       production password-reset and confirmation email link would break
-#   [auth.email] enable_confirmations = false -> turns email verification OFF
-#       (Login.tsx tells new users to check their email, so production has it on)
-#   [auth.rate_limit] email_sent = 2 -> caps the project at 2 emails an HOUR,
-#       silently killing password resets after the second one
-#   [auth.email] max_frequency = "1s" -> reset emails once a second, an
-#       abuse vector
+# `config push` sends more than [auth]: api, db, db.ssl_enforcement,
+# db.network_restrictions, auth, storage, and experimental.webhooks, each with
+# its own diff and its own confirmation prompt. There is no --dry-run flag and
+# no `config pull`, but the prompt IS the dry run -- push prints the diff
+# BEFORE asking, and sends nothing until you answer. Read the diff, then answer
+# NO unless it is exactly what you meant to change.
 #
-# So production auth policy is changed in the Supabase DASHBOARD, and the
-# values here are the local mirror of it. Where the two must agree, say so in
-# a comment on the setting (see minimum_password_length and
-# secure_password_change), and keep src/lib/passwordPolicy.ts in step -- its
-# test reads this file.
+# The prompt renders as `● Yes / ○ No` with YES PRESELECTED, so pressing Enter
+# pushes. You must arrow to No. That is how production lost email verification
+# for ten minutes on 2026-09-04: a run intended as a dry run was Entered
+# through.
 #
-# Making this file safely pushable is worth doing, and it is a real task: read
-# the live auth config, correct the five settings above to production values,
-# commit that, and only then is `config push` the right tool. Until someone
-# does that, this file is not the source of truth for production and must not
-# be read as if it were.
+# Keep src/lib/passwordPolicy.ts in step with minimum_password_length; its test
+# reads this file.
 # ---------------------------------------------------------------------------
 [auth]
 enabled = true
@@ -246,7 +241,10 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# On, matching production. Login.tsx tells a new user to check their email,
+# and that message is only true because of this.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 #
 # On. Without it, `supabase.auth.updateUser({ password })` authorises on the
@@ -257,9 +255,9 @@ enable_confirmations = false
 # skips.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+max_frequency = "1m0s"
 # Number of characters used in the email OTP.
-otp_length = 6
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
@@ -329,9 +327,13 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
+#
+# Enabled in production. Recorded here because config.toml is pushed: leaving
+# these false would turn TOTP enrolment OFF for every existing portal account.
+# Enabling MFA in the portal UI is separate work and is not done here.
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
@@ -433,3 +435,25 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# ---------------------------------------------------------------------------
+# Production overrides, applied by `supabase config push` when the target ref
+# matches project_id (it prints "Loading config override: [remotes.production]"
+# when it picks this up -- if that line is missing, the override did not apply
+# and you are about to push localhost URLs). Merged over the base config, so
+# only the keys that genuinely differ belong here.
+#
+# These two are the only settings in the whole file that cannot be shared:
+# every other local/production divergence was an unrevisited scaffold default,
+# not a real difference.
+# ---------------------------------------------------------------------------
+[remotes.production]
+project_id = "qetzeqyuuiposzseqwvb"
+
+[remotes.production.auth]
+site_url = "https://www.datakollecta.com"
+additional_redirect_urls = [
+  "http://localhost:8080/auth/callback",
+  "http://localhost:5173/auth/callback",
+  "https://www.datakollecta.com/auth/callback",
+]

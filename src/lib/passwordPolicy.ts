@@ -2,7 +2,9 @@
  * The portal's password floor, in one place.
  *
  * **The server is the policy, not this file.** Enforcement lives in
- * `supabase/config.toml` (`[auth] minimum_password_length`), because these
+ * `supabase/config.toml` (`[auth] minimum_password_length`) -- which is
+ * production's value, pushed with `supabase config push`, not a local mirror
+ * of a dashboard setting -- because these
  * pages are client-side React and anyone can call
  * `supabase.auth.updateUser({ password })` directly -- a length check in a
  * component is a hint, not a rule. This constant exists so the hint agrees
