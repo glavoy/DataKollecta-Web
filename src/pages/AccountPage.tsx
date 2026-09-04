@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { getErrorCode } from "@/lib/errors/postgrestError";
 import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from "@/lib/passwordPolicy";
 
 /** One row of the project_members + projects join this page reads. */
@@ -123,9 +124,32 @@ const AccountPage = () => {
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
+      // `secure_password_change` is on in supabase/config.toml, so the Auth
+      // service refuses this unless the session is under 24 hours old --
+      // measured: 23h is allowed, 25h returns `reauthentication_needed`. That
+      // is the point of the setting (a stolen session must not be able to
+      // change the password on its own), but its raw message, "Password
+      // update requires reauthentication", tells the user nothing they can
+      // act on.
+      //
+      // Signing out and back in is the whole remedy, and it is not a
+      // workaround: signing in requires the current password, which is
+      // precisely the proof the setting is asking for. Supabase's other route
+      // is `auth.reauthenticate()`, which emails a one-time code -- more UI,
+      // more email delivery to depend on, and no stronger a guarantee.
+      // Two checks because supabase-js surfaces an AuthError's `error_code`
+      // as `code` on recent versions and not on older ones; the message is
+      // the fallback that does not depend on the client version.
+      const code = getErrorCode(error);
+      const stale =
+        code === "reauthentication_needed" ||
+        /reauthentication/i.test(getErrorMessage(error, ""));
+
       toast({
-        title: "Error",
-        description: getErrorMessage(error, "Failed to change password."),
+        title: stale ? "Please sign in again" : "Error",
+        description: stale
+          ? "For security, a password change needs a recent sign-in. Sign out, sign back in, and then change it."
+          : getErrorMessage(error, "Failed to change password."),
         variant: "destructive",
       });
     } finally {

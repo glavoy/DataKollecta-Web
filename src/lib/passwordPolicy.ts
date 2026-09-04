@@ -14,6 +14,31 @@
  * credentials. The two surfaces used to disagree, with the weaker rule on the
  * portal account -- the one that can read every project's collected data.
  *
+ * What the two config settings actually do, measured against a local stack
+ * rather than inferred -- because the obvious worry is that raising a floor
+ * locks people out, and it does not:
+ *
+ * | probe | result |
+ * |---|---|
+ * | existing account with a 6-char password signs in | **works** -- sign-in never checks length |
+ * | signing UP with 6 characters | refused, 422 "Password should be at least 10 characters" |
+ * | admin API creating a 6-char account | allowed -- it bypasses the policy |
+ * | forgot-password link, then set a new password | **works** -- recovery is not blocked |
+ * | field worker with a 6-char password on the phone app | **works** -- separate credential system |
+ * | change password, session 23h old | allowed |
+ * | change password, session 25h old | refused, `reauthentication_needed` |
+ *
+ * That last pair is the one with a UI consequence: `secure_password_change`
+ * gives a 24-hour window, after which the Auth service refuses the change.
+ * `AccountPage` catches it and tells the user to sign out and back in, which
+ * is the whole remedy -- signing in requires the current password, which is
+ * exactly the proof the setting asks for.
+ *
+ * Field-worker credentials are untouched by any of this. The phone app goes
+ * through the `app-login` Edge Function to `verify_app_credential`, which
+ * bcrypts against `app_credentials`; Supabase Auth is not in that path, and
+ * its own 10-character floor lives in `create_app_credential`.
+ *
  * **Only for the sites that SET a password**: sign-up, password reset, and the
  * account page. Never put it on a sign-in field. The password box on
  * `Login.tsx` is rendered in both modes, and a `minLength` there applies to
