@@ -118,7 +118,16 @@ const SurveyDesignerPage = () => {
     // user?.id, not user -- AuthContext still hands out a new `user` object
     // reference on some events even after its own identity-comparison fix,
     // and this effect has no business re-running for the same person.
-  }, [slug, surveyId, user?.id]);
+    // Re-running it would refetch the package and reset the designer under
+    // whoever is editing.
+    //
+    // exhaustive-deps wants `user` itself; it cannot see that a property of a
+    // dependency is narrower than the dependency. `navigate` and `toast` are
+    // stable references (useNavigate memoises, `toast` is module-level), so
+    // they are listed for accuracy and change nothing. The disable is for
+    // `user` alone, and is the reason above rather than a blanket silence.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, surveyId, user?.id, navigate, toast]);
 
   // Only the very first load (no package yet) should show the full-page
   // spinner. If this effect is ever re-triggered while a package is already

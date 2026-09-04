@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback} from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +84,10 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
 
   const canManage = userRole === 'owner' || userRole === 'editor';
 
-  const loadWorkers = async () => {
+
+  // useCallback, above the effect that depends on it -- see the note in
+  // Projects.tsx. `toast` is module-level and stable.
+  const loadWorkers = useCallback(async () => {
     setLoading(true);
     try {
       const data = await teamService.getFieldWorkers(projectId);
@@ -99,11 +102,11 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, toast]);
 
   useEffect(() => {
     loadWorkers();
-  }, [projectId]);
+  }, [loadWorkers]);
 
   const filteredWorkers = workers.filter(w =>
     w.username.toLowerCase().includes(searchTerm.toLowerCase()) ||

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,11 +72,11 @@ const Projects = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchProjects();
-  }, [user]);
-
-  const fetchProjects = async () => {
+  // useCallback, and declared above the effect that depends on it: a `const`
+  // is not hoisted, so naming it in the dependency array of an earlier
+  // useEffect would be a TDZ error at render time. `toast` is a module-level
+  // function so its identity is stable -- putting it in the deps cannot loop.
+  const fetchProjects = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -165,7 +165,12 @@ const Projects = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
 
   const handleCreateProject = async (projectData: {
     name: string;

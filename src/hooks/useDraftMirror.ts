@@ -38,6 +38,9 @@ export function useDraftMirror(args: {
     }, delayMs);
 
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pkg is read via pkgRef so a change to it alone still needs to reset the timer
+    // `pkg` is in the deps although the timer reads it through pkgRef: a
+    // change to it alone still has to reset the debounce, or an edit made
+    // inside the delay window would never be written. exhaustive-deps is
+    // satisfied by that, so the disable this line used to carry was dead.
   }, [enabled, userId, surveyKey, pkg, delayMs, baseServerUpdatedAtRef]);
 }

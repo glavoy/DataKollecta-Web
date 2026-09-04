@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback} from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -199,13 +199,11 @@ const ProjectDetail = () => {
   // those, since it's easy to assume archiving hides it from devices too.
   const [archiveWarningSurvey, setArchiveWarningSurvey] = useState<SurveyPackage | null>(null);
 
-  useEffect(() => {
-    if (slug) {
-      fetchProjectData();
-    }
-  }, [slug, user]);
-
-  const fetchProjectData = async () => {
+  // useCallback, and declared above the effect that depends on it: a `const`
+  // is not hoisted, so naming it in an earlier dependency array would be a TDZ
+  // error at render time. `toast` is module-level and therefore stable, so it
+  // cannot cause a refetch loop.
+  const fetchProjectData = useCallback(async () => {
     if (!user || !slug) return;
 
     try {
@@ -282,7 +280,14 @@ const ProjectDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, slug, toast, navigate]);
+
+  useEffect(() => {
+    if (slug) {
+      fetchProjectData();
+    }
+  }, [slug, fetchProjectData]);
+
 
   const handleDownloadSurvey = async (filePath: string, fileName: string) => {
     if (!filePath) {
