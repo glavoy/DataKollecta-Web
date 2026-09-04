@@ -46,3 +46,17 @@ tmp
 # bundled edge function output, regenerated every run, never meant to be
 # committed or linted.
 supabase/.temp
+# Database dumps. `supabase db dump` writes these into the repo root by
+# default, and a data dump carries auth.users password hashes, app_credentials
+# bcrypt hashes and live app_sessions tokens -- the most sensitive rows on the
+# platform. Ignored by pattern rather than by name so the next backup, whatever
+# it is called, cannot be swept into a commit by `git add -A`. Keep them
+# outside the repo if you can.
+# Anchored to the repo root with a leading slash on purpose: an unanchored
+# `*-data-*.sql` would also match anything under supabase/migrations/, so a
+# future migration called something like `add-data-column.sql` would be
+# silently untracked -- a far worse failure than the one being prevented.
+/prod-*.sql
+/*-schema-*.sql
+/*-data-*.sql
+/*.dump
