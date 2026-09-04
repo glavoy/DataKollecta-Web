@@ -202,8 +202,14 @@ Deno.test("app-login: ten failures lock the username out, and a success clears t
 
     // The 11th is refused before the password is even considered -- so the
     // CORRECT password fails too, which is the whole point.
+    //
+    // 429, not 401: the ten failures above are 401 because the credentials
+    // really were wrong, while this one says nothing about the credentials at
+    // all. That difference is deliberate and is the one rejection allowed to
+    // be distinguishable -- it leaks nothing about whether the project or
+    // username exists.
     const lockedOut = await callFunction("app-login", credentials(fixture));
-    assertEquals(lockedOut.status, 401);
+    assertEquals(lockedOut.status, 429);
     assert(
       String(lockedOut.body.error).toLowerCase().includes("too many"),
       `expected a lockout message, got: ${JSON.stringify(lockedOut.body)}`,
@@ -214,6 +220,45 @@ Deno.test("app-login: ten failures lock the username out, and a success clears t
     await admin.from("app_login_attempts").delete().eq("username", fixture.username);
     const recovered = await callFunction("app-login", credentials(fixture));
     assertEquals(recovered.status, 200, JSON.stringify(recovered.body));
+
+    await clearLoginAttempts();
+  });
+});
+
+Deno.test("app-login: a throttled login is a 429 and a wrong password is a 401", async () => {
+  // The protocol contract, asserted on its own because it is the whole point
+  // of the change and because the two statuses mean opposite things to the
+  // client. `api_client.dart` maps 401 to SyncAuthException (stop, show
+  // generic "invalid credentials" copy) and 429 to SyncThrottledException
+  // (stop, show THIS message, never retry). Collapsing them back to one
+  // status would either make a lockout look like a bad password or make the
+  // client retry against a server that just asked it to stop.
+  await withFixture({}, async (fixture) => {
+    await clearLoginAttempts();
+
+    const wrong = await callFunction("app-login", credentials(fixture, { password: "wrong" }));
+    assertEquals(wrong.status, 401);
+
+    for (let attempt = 2; attempt <= 10; attempt++) {
+      await callFunction("app-login", credentials(fixture, { password: `wrong-${attempt}` }));
+    }
+
+    const throttled = await callFunction("app-login", credentials(fixture));
+    assertEquals(throttled.status, 429);
+
+    // The message has to survive verbatim: it carries the wait time, and it
+    // is the only thing the interviewer can act on.
+    assert(
+      String(throttled.body.error).includes("15 minutes"),
+      `the wait time must reach the client, got: ${JSON.stringify(throttled.body)}`,
+    );
+
+    // And it must NOT be the uniform credential rejection -- if it were, the
+    // client could not tell a lockout from a typo.
+    assert(
+      String(throttled.body.error) !== String(wrong.body.error),
+      "a throttle and a wrong password returned the same message",
+    );
 
     await clearLoginAttempts();
   });
@@ -236,7 +281,7 @@ Deno.test("app-login: locking out one worker does not lock out another", async (
         await callFunction("app-login", credentials(fixture, { password: `wrong-${attempt}` }));
       }
       const lockedOut = await callFunction("app-login", credentials(fixture));
-      assertEquals(lockedOut.status, 401);
+      assertEquals(lockedOut.status, 429);
 
       const colleague = await callFunction("app-login", {
         project_code: fixture.projectSlug,

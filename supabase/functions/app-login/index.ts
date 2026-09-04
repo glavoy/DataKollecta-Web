@@ -1,9 +1,13 @@
-// Both imports are pinned to an exact version on purpose. `@2` is a floating
-// major: every redeploy re-resolves it, so a supabase-js release could change
-// how these two endpoints behave without a single line of this repo changing,
-// and the first sign of it would be field devices failing to sync. Bump these
-// deliberately, with the Edge Function tests run against the new version.
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// Pinned to an exact version on purpose. `@2` is a floating major: every
+// redeploy re-resolves it, so a supabase-js release could change how these two
+// endpoints behave without a single line of this repo changing, and the first
+// sign of it would be field devices failing to sync. Bump it deliberately,
+// with the Edge Function tests run against the new version.
+//
+// The HTTP server used to come from `https://deno.land/std@0.168.0`, fetched
+// from someone else's domain on every deploy for something the runtime
+// provides. `Deno.serve` is built in: one less remote dependency that can
+// move or vanish, and one less 2022 pin to explain.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.115.0";
 
 // Empty on purpose. Nothing in the portal calls this function -- the only
@@ -40,7 +44,7 @@ function clientIp(req: Request): string | null {
     return forwarded.split(",")[0].trim() || null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     const cors = corsHeaders(req);
     const json = { ...cors, "Content-Type": "application/json" };
 
@@ -102,16 +106,28 @@ serve(async (req) => {
             );
         }
 
-        // 401 rather than 429 deliberately. api_client.dart maps 401 to
-        // SyncAuthException -- which stops the sync run and shows this message
-        // verbatim -- while an unrecognised 429 falls through to
-        // SyncTransferException, a *retryable* transfer error. Retrying is
-        // exactly the wrong response to a lockout, and this way the behaviour
-        // is correct on handsets already in the field. Moving to 429 needs a
-        // client change shipped first.
+        // 429, and deliberately NOT through `rejected()`. That helper exists
+        // to make every credential rejection byte-identical so active project
+        // codes cannot be enumerated; a throttle is the one rejection that is
+        // *allowed* to be distinguishable, because it says nothing about
+        // whether the project, the username or the password was right -- only
+        // that this caller has asked too often. Routing it through the shared
+        // helper would either leak a difference into the uniform responses or
+        // force the throttle to pretend to be a credential failure.
+        //
+        // This used to be a 401 for a client reason that no longer applies:
+        // api_client.dart mapped an unrecognised 429 to a *retryable*
+        // SyncTransferException, and retrying is the worst response to a
+        // lockout. The client now has SyncThrottledException, which stops and
+        // shows this message verbatim -- shipped first, on purpose, so no
+        // build ever meets a status it mishandles.
         if (verdict?.outcome === "throttled") {
-            return rejected(
-                "Too many failed sign-in attempts. Please wait 15 minutes and try again."
+            return new Response(
+                JSON.stringify({
+                    error:
+                        "Too many failed sign-in attempts. Please wait 15 minutes and try again.",
+                }),
+                { status: 429, headers: json },
             );
         }
 
