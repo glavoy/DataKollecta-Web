@@ -1,5 +1,10 @@
+// Both imports are pinned to an exact version on purpose. `@2` is a floating
+// major: every redeploy re-resolves it, so a supabase-js release could change
+// how these two endpoints behave without a single line of this repo changing,
+// and the first sign of it would be field devices failing to sync. Bump these
+// deliberately, with the Edge Function tests run against the new version.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.115.0";
 
 // Kept in step with app-login/index.ts by hand. Each Edge Function is its own
 // deployment unit, so a dozen duplicated lines is preferable to introducing a
