@@ -15,6 +15,15 @@ import { buildFormScope } from '../scope';
 
 const TABLENAME_RE = /^[a-z_][a-z0-9_]*$/;
 
+/** A comma-separated manifest cell as a list of trimmed names. */
+function splitList(value: string | undefined | null): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function tablenameFindings(pkg: SurveyPackage): Finding[] {
   const findings: Finding[] = [];
   const seen = new Map<string, string[]>(); // lowercased tablename -> form ids
@@ -196,6 +205,38 @@ function parentFieldReferenceFindings(pkg: SurveyPackage): Finding[] {
         subject: form.repeatCountField,
         message: `Repeat count field '${form.repeatCountField}' is not a field on the parent form '${form.parenttable}'.`,
       });
+    }
+
+    // Foreign-key viability, which neither this tool nor SurveyGen used to
+    // check. The app now creates each child table with
+    // `FOREIGN KEY (linkingfield) REFERENCES parent(...) ON UPDATE CASCADE`,
+    // so a correction to a parent's key carries to its children instead of
+    // splitting a household across two ids. That requires the linking column
+    // to exist on the *parent* -- which nothing verified anywhere, because
+    // formManifest.ts only ever resolved it against the child's own fields.
+    //
+    // It deliberately does not require the linking field to be the parent's
+    // primary key. A real dictionary links `vaccination_status` to `enrollee`
+    // on `barcode` (a scanned physical label) while `enrollee` is keyed on
+    // `subjid`, and that is a legitimate shape: the app declares the
+    // uniqueness the foreign key needs over whichever columns children
+    // actually reference, not only over the primary key.
+    if (form.linkingfield) {
+      const linkingCols = splitList(form.linkingfield);
+      const unknownOnParent = linkingCols.filter(
+        (col) => scope.resolve(col).kind === 'unknown',
+      );
+
+      if (unknownOnParent.length > 0) {
+        findings.push({
+          ...base,
+          ruleId: RULE.linkingFieldNotOnParent,
+          severity: 'error',
+          subject: unknownOnParent.join(', '),
+          message: `Linking field '${unknownOnParent.join(', ')}' is not a field on the parent form '${form.parenttable}'.`,
+          hint: 'A child is matched to its parent by this column, so it has to exist on both forms.',
+        });
+      }
     }
 
     if (form.entry_condition) {

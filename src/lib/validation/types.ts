@@ -76,6 +76,7 @@ export const RULE = {
   parentCycle: 'form.parenttable.cycle',
   linkingFieldMissing: 'form.linkingfield.missing',
   linkingFieldUnknown: 'form.linkingfield.unknown',
+  linkingFieldNotOnParent: 'form.linkingfield.notOnParent',
   manifestFieldUnknown: 'form.manifest.unknownField',
   entryConditionUnknown: 'form.entryCondition.unknownField',
   repeatCountFieldUnknown: 'form.repeatCountField.unknownField',

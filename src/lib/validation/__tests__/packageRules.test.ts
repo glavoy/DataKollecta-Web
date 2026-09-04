@@ -187,3 +187,94 @@ describe('package identity', () => {
     expect(findings.filter((f) => f.ruleId === RULE.databaseNameInvalid)).toEqual([]);
   });
 });
+
+describe('foreign-key viability (linkingfield against the parent)', () => {
+  // The app creates each child table with
+  // FOREIGN KEY (linkingfield) REFERENCES parent(...) ON UPDATE CASCADE, so a
+  // correction to a parent's key carries to its children. Two conditions have
+  // to hold for that to be declarable, and neither was checked anywhere --
+  // formManifest.ts only ever resolved linkingfield against the *child's* own
+  // fields.
+  const parent = formOf('hh_info', {
+    primaryKey: 'hhid',
+    questions: [q('hhid'), q('nmembers')],
+  });
+
+  it('is silent when the linking field is exactly the parent key', () => {
+    const child = formOf('hh_members', {
+      primaryKey: 'hhid,linenum',
+      parenttable: 'hh_info',
+      linkingfield: 'hhid',
+      questions: [q('hhid'), q('linenum')],
+    });
+
+    expect(packageFindings(pkgOf([parent, child]))).toEqual([]);
+  });
+
+  it('errors when the linking field is not a field on the parent', () => {
+    const child = formOf('hh_members', {
+      primaryKey: 'household_id,linenum',
+      parenttable: 'hh_info',
+      linkingfield: 'household_id',
+      questions: [q('household_id'), q('linenum')],
+    });
+
+    const findings = packageFindings(pkgOf([parent, child]));
+    expect(findings).toContainEqual(
+      expect.objectContaining({
+        ruleId: RULE.linkingFieldNotOnParent,
+        subject: 'household_id',
+      }),
+    );
+  });
+
+  it('accepts a linking field that is not the parent primary key', () => {
+    // A real dictionary links vaccination_status to enrollee on `barcode` (a
+    // scanned physical label) while enrollee is keyed on `subjid`. The app
+    // declares the uniqueness the foreign key needs over whichever columns
+    // children reference, so this must not be an error.
+    const enrollee = formOf('enrollee', {
+      primaryKey: 'subjid',
+      linkingfield: 'barcode',
+      questions: [q('subjid'), q('barcode')],
+    });
+    const vaccination = formOf('vaccination_status', {
+      primaryKey: 'barcode',
+      parenttable: 'enrollee',
+      linkingfield: 'barcode',
+      questions: [q('barcode')],
+    });
+
+    expect(packageFindings(pkgOf([enrollee, vaccination]))).toEqual([]);
+  });
+
+  it('accepts a composite linking field naming real parent columns', () => {
+    const middle = formOf('hh_members', {
+      primaryKey: 'hhid,linenum',
+      parenttable: 'hh_info',
+      linkingfield: 'hhid',
+      questions: [q('hhid'), q('linenum')],
+    });
+    const grandchild = formOf('member_visits', {
+      primaryKey: 'hhid,linenum,visitnum',
+      parenttable: 'hh_members',
+      linkingfield: 'hhid,linenum',
+      questions: [q('hhid'), q('linenum'), q('visitnum')],
+    });
+
+    expect(packageFindings(pkgOf([parent, middle, grandchild]))).toEqual([]);
+  });
+
+  it('is silent when the parent is missing -- parentChainFindings owns that', () => {
+    const orphan = formOf('hh_members', {
+      primaryKey: 'hhid,linenum',
+      parenttable: 'not_here',
+      linkingfield: 'hhid',
+      questions: [q('hhid'), q('linenum')],
+    });
+
+    const findings = packageFindings(pkgOf([parent, orphan]));
+    expect(findings.map((f) => f.ruleId)).not.toContain(RULE.linkingFieldNotOnParent);
+    expect(findings.map((f) => f.ruleId)).toContain(RULE.parentMissing);
+  });
+});
