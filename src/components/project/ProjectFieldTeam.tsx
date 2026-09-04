@@ -51,6 +51,7 @@ import { teamService, type FieldWorker } from "@/services/teamService";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { isUniqueViolation } from "@/lib/errors/postgrestError";
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -215,7 +216,7 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
     } catch (error) {
       // (project_id, username) is unique -- surface a real collision as a
       // real message instead of the raw Postgres constraint text.
-      const isDuplicate = error?.code === '23505' || /duplicate key/i.test(error?.message || '');
+      const isDuplicate = isUniqueViolation(error);
       toast({
         title: "Error",
         description: isDuplicate

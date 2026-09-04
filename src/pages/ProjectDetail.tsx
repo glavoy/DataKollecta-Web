@@ -568,12 +568,14 @@ const ProjectDetail = () => {
       const zip = new JSZip();
       const loadedZip = await zip.loadAsync(uploadFile);
 
-      let manifestFile = null;
-      loadedZip.forEach((relativePath, file) => {
-        if (relativePath.toLowerCase().endsWith("survey_manifest.gistx")) {
-          manifestFile = file;
-        }
-      });
+      // A direct lookup rather than a forEach that mutates a variable.
+      // TypeScript cannot see that a callback ran, so under strict the
+      // variable stayed narrowed to `null` and the later `.async("string")`
+      // resolved against `never`. `JSZipObject.name` is the same relative
+      // path forEach hands out.
+      const manifestFile = Object.values(loadedZip.files).find((file) =>
+        file.name.toLowerCase().endsWith("survey_manifest.gistx")
+      );
 
       if (!manifestFile) {
         throw new Error("Invalid ZIP: survey_manifest.gistx is missing.");
@@ -723,17 +725,18 @@ const ProjectDetail = () => {
 
       if (dbError) throw dbError;
 
-      const crfsToInsert = [];
+      const crfsToInsert: Record<string, unknown>[] = [];
 
-      for (const crfEntry of manifest.crfs) {
+      // `crfs` is optional on UploadedManifest, and the check that it is
+      // present and non-empty happens in the caller -- which is a different
+      // function, so nothing here guaranteed it. This is the exact shape H3
+      // predicted `strictNullChecks` would surface: a manifest that failed to
+      // parse typechecked fine and threw at runtime.
+      for (const crfEntry of manifest.crfs ?? []) {
         const xmlFileName = `${crfEntry.tablename}.xml`;
-        let xmlFile = null;
-
-        loadedZip.forEach((path, file) => {
-          if (path.toLowerCase().endsWith(xmlFileName.toLowerCase())) {
-            xmlFile = file;
-          }
-        });
+        const xmlFile = Object.values(loadedZip.files).find((file) =>
+          file.name.toLowerCase().endsWith(xmlFileName.toLowerCase())
+        );
 
         if (!xmlFile) {
           console.warn(`XML file ${xmlFileName} not found in ZIP.`);

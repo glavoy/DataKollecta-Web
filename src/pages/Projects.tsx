@@ -41,6 +41,7 @@ import CreateProjectDialog from "@/components/projects/CreateProjectDialog";
 import { projectService } from "@/services/projectService";
 import { ProjectStatus, STATUS_LABEL, STATUS_BADGE_CLASS, ARCHIVED_BADGE_CLASS } from "@/lib/projectStatus";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { getErrorCode, getErrorDetails } from "@/lib/errors/postgrestError";
 
 interface Project {
   id: string;
@@ -222,12 +223,12 @@ const Projects = () => {
       let errorMessage = getErrorMessage(error, "Failed to create project");
 
       // Handle unique constraint violations
-      if (error.code === '23505') { // unique_violation
+      if (getErrorCode(error) === '23505') { // unique_violation
         // Check message, details, or if the stringified error contains the keywords
         // This covers cases where Supabase might wrap the error differently
         const errorString = JSON.stringify(error).toLowerCase();
-        const message = error.message?.toLowerCase() || '';
-        const details = error.details?.toLowerCase() || '';
+        const message = getErrorMessage(error, '').toLowerCase();
+        const details = (getErrorDetails(error) ?? '').toLowerCase();
 
         if (
           message.includes('slug') ||

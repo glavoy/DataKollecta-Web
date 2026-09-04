@@ -401,7 +401,11 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     // Removed searchTerm clear and scroll since search is gone and we use a dialog
   };
 
-  const getFieldValue = (data: Record<string, unknown>, fieldname: string) => {
+  // `fieldname` is optional on a SurveyQuestion, so a column built from one
+  // can genuinely have none -- and a field with no name has no value to look
+  // up. Same "-" as a null answer rather than the string "undefined".
+  const getFieldValue = (data: Record<string, unknown>, fieldname: string | undefined) => {
+    if (!fieldname) return '-';
     const value = data?.[fieldname];
     if (value === null || value === undefined) return '-';
     const str = String(value);

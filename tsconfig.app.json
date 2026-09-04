@@ -15,14 +15,17 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    /* `strict` and `noImplicitAny` are still off -- turning them on is its
-       own piece of work, tracked separately. The unused-code checks below are
-       on, because nothing flagged the 25 unused shadcn components or the
-       dependencies that came with them. */
-    "strict": false,
+    /* `strict` is on, which subsumes noImplicitAny and strictNullChecks.
+       Turning it on found the failure this project had already been warned
+       about: `manifest.crfs` is optional, and the code that iterated it was
+       in a different function from the check that it exists -- so a package
+       whose manifest failed to parse typechecked fine and threw in the
+       designer at runtime. Note that `npm run build` does NOT typecheck (Vite
+       + SWC strip types without checking them), so `tsc --noEmit` has to be
+       run separately -- see the README's Verification section. */
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true,
 
     "paths": {
