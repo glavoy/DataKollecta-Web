@@ -25,3 +25,19 @@
 - When a survey is inactive - users cannot download it
 - when there are many surveys and a user is viewing the data, the data shows below all of the surveys - there needs to be an improvemnet on how the data is displayed
 
+## Found during the M5 decomposition - each its own commit
+
+- **No migration creates the `surveys` storage bucket.** `20260817102141_remote_schema.sql`
+  defines six RLS policies against `bucket_id = 'surveys'`, but nothing creates the bucket -
+  production's was made through the Supabase dashboard. So a fresh `supabase start` +
+  `supabase db reset` gives a stack where every save and upload fails with `Bucket not found`
+  (400/404), which makes the upload path impossible to QA locally without knowing to run:
+  `insert into storage.buckets (id, name, public) values ('surveys','surveys',false) on conflict (id) do nothing;`
+  Adding that to a migration would fix local setup for good; check first that it is a no-op
+  against production, where the bucket already exists.
+- **`getDefaultFieldType` is declared twice, with different signatures.** One in
+  `src/lib/surveyFactories.ts` (extracted from SurveyDesigner, now tested), one in
+  `QuestionEditor.tsx:92`. They may already disagree about what a question type's default
+  fieldtype should be. Whether they should be one function is a behaviour question, so it needs
+  its own commit and a test that says which answer is right.
+
