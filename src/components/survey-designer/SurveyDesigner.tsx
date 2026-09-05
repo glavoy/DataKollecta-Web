@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom"; // Added Link
 import { SurveyPackage, SurveyForm, SurveyQuestion, QuestionType } from "@/types/survey";
 import { Button } from "@/components/ui/button";
@@ -69,9 +69,8 @@ import { surveyService } from "@/services/surveyService";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { validatePackage, type Finding, type FindingPart } from "@/lib/validation";
-import { useDraftMirror } from "@/hooks/useDraftMirror";
+import { useSurveyDraft } from "@/hooks/useSurveyDraft";
 import { renameFieldAcrossPackage, renameInQuestion } from "@/lib/xml/rename";
-import { surveyDraftKey, readDraft, clearDraft, evaluateDraft, type SurveyDraft } from "@/lib/draftStorage";
 import { SurveyStatus, isSurveyLocked, isLegalTransition, STATUS_LABEL } from "@/lib/surveyStatus";
 import { translateSurveyWriteError } from "@/lib/errors/surveyErrors";
 import DuplicateSurveyDialog from "./DuplicateSurveyDialog";
@@ -102,17 +101,34 @@ interface SurveyDesignerProps {
 
 const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, projectId, projectSlug, userId, surveyStatus = 'draft', surveyVersion = 1, onStatusChange }: SurveyDesignerProps) => {
   const { toast } = useToast();
-  const [surveyPackage, setSurveyPackage] = useState<SurveyPackage>(
-    initialPackage || {
+
+  // The edited package, which form is open, and everything that keeps unsaved
+  // work from being lost -- see useSurveyDraft.
+  const {
+    surveyPackage,
+    activeFormId,
+    setActiveFormId,
+    dirty,
+    applyEdit,
+    markSaved,
+    pendingDraft,
+    restoreDraft,
+    discardDraft,
+  } = useSurveyDraft({
+    initialPackage,
+    serverUpdatedAt,
+    surveyRecordId,
+    projectId,
+    userId,
+    makeEmptyPackage: () => ({
       id: crypto.randomUUID(),
       surveyId: `survey_${shortId()}`,
       name: 'New Survey Package',
       forms: [createDefaultForm()],
       csvFiles: [],
-    }
-  );
+    }),
+  });
 
-  const [activeFormId, setActiveFormId] = useState<string>(surveyPackage.forms[0]?.id || '');
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<SurveyQuestion | null>(null);
   const [showQuestionEditor, setShowQuestionEditor] = useState(false);
@@ -133,18 +149,6 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
   // there is simply nothing to click that would attempt one.
   const locked = isSurveyLocked(surveyStatus);
 
-  // True whenever `surveyPackage` holds edits the project doesn't have.
-  // Drives the Save Draft/Publish affordance, the local draft mirror, and
-  // the unsaved-changes warning on tab close -- cleared only on a
-  // successful server save or when a freshly-loaded survey is adopted.
-  const [dirty, setDirty] = useState(false);
-
-  // The server's `updated_at` for whatever is currently the "clean"
-  // baseline -- reset on load and after every successful save. This is what
-  // the draft mirror stamps a local draft with, and what a later restore
-  // compares against to know whether the server has moved on since.
-  const baseServerUpdatedAtRef = useRef<string | null>(serverUpdatedAt ?? null);
-
   // Recomputed whenever the package object changes identity, which
   // updatePackage always does -- every edit replaces the whole object, so
   // this stays in sync without a separate effect or a debounce. Not
@@ -158,63 +162,6 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  const surveyKey = surveyDraftKey(surveyRecordId, projectId ?? null);
-  const [pendingDraft, setPendingDraft] = useState<{ draft: SurveyDraft; staleBase: boolean } | null>(null);
-  // Guards against the restore/discard dialog's own close animation firing
-  // its onOpenChange a second time after an explicit button already handled
-  // the choice -- see handleDiscardDraft.
-  const draftHandledRef = useRef(false);
-
-  // Adopt `initialPackage` only when the survey it represents actually
-  // changes -- keyed on the package's own id, not on the prop's object
-  // identity. A parent re-render that hands down the *same* survey again
-  // (a token refresh used to do exactly this) must never overwrite whatever
-  // the user has typed since. See AuthContext/SurveyDesignerPage for the
-  // upstream fixes that make this a defense-in-depth guard rather than the
-  // only thing standing between a refresh and lost work.
-  const adoptedIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!initialPackage) return;
-    if (adoptedIdRef.current === initialPackage.id) return;
-    adoptedIdRef.current = initialPackage.id;
-
-    setSurveyPackage(initialPackage);
-    setActiveFormId(initialPackage.forms[0]?.id ?? '');
-    setDirty(false);
-    baseServerUpdatedAtRef.current = serverUpdatedAt ?? null;
-
-    if (!userId) return;
-    const draft = readDraft(userId, surveyKey);
-    const evaluation = evaluateDraft(draft, initialPackage, serverUpdatedAt ?? null);
-    if (evaluation.kind === 'redundant') {
-      clearDraft(userId, surveyKey);
-    } else if (evaluation.kind === 'offer') {
-      draftHandledRef.current = false;
-      setPendingDraft({ draft: evaluation.draft, staleBase: evaluation.staleBase });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on initialPackage/serverUpdatedAt only; userId/surveyKey are read for the one-time draft check on adoption, not meant to re-run this
-  }, [initialPackage, serverUpdatedAt]);
-
-  useDraftMirror({
-    enabled: dirty && !!userId,
-    pkg: surveyPackage,
-    userId,
-    surveyKey,
-    baseServerUpdatedAtRef,
-  });
-
-  // A close/refresh within the draft mirror's debounce window is the one
-  // gap it can't cover on its own.
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [dirty]);
 
   const activeForm = surveyPackage.forms.find(f => f.id === activeFormId);
 
@@ -238,36 +185,17 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
       });
       return;
     }
-    setSurveyPackage(prev => ({ ...prev, ...(typeof update === 'function' ? update(prev) : update) }));
-    setDirty(true);
+    applyEdit(update);
   };
 
-  const handleRestoreDraft = () => {
-    if (!pendingDraft || draftHandledRef.current) return;
-    draftHandledRef.current = true;
-    const { draft } = pendingDraft;
-    const restored: SurveyPackage = {
-      ...draft.pkg,
-      csvFiles: (surveyPackage.csvFiles ?? []).filter(f => draft.csvFilenames.includes(f.filename)),
-    };
-    setSurveyPackage(restored);
-    setActiveFormId(restored.forms[0]?.id ?? '');
-    setDirty(true); // restored work is still unsaved
-    if (userId) clearDraft(userId, surveyKey);
-    setPendingDraft(null);
-  };
-
+  // The hook owns the one-shot guard that stops the dialog's own close
+  // animation running this a second time after Restore already handled the
+  // choice; it reports whether anything was actually discarded, so the toast
+  // only appears when it was.
   const handleDiscardDraft = () => {
-    // AlertDialogAction/Cancel both close the dialog themselves, which also
-    // fires the AlertDialog's onOpenChange(false) below -- without this
-    // guard, confirming Restore would run this discard path a beat later
-    // and show "Local copy discarded" even though the restore just
-    // succeeded. Reset alongside `pendingDraft` whenever a new offer starts.
-    if (draftHandledRef.current) return;
-    draftHandledRef.current = true;
-    if (userId) clearDraft(userId, surveyKey);
-    setPendingDraft(null);
-    toast({ title: "Local copy discarded" });
+    if (discardDraft()) {
+      toast({ title: "Local copy discarded" });
+    }
   };
 
   const handleSaveToProject = async (status: SurveyStatus = 'draft') => {
@@ -321,9 +249,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
         status
       );
 
-      setDirty(false);
-      baseServerUpdatedAtRef.current = savedRow?.updated_at ?? null;
-      if (userId) clearDraft(userId, surveyKey);
+      markSaved(savedRow?.updated_at ?? null);
       onStatusChange?.(status);
 
       toast({
@@ -969,7 +895,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleDiscardDraft}>Discard local copy</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestoreDraft}>Restore changes</AlertDialogAction>
+            <AlertDialogAction onClick={restoreDraft}>Restore changes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
