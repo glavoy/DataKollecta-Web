@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { SurveyQuestion, QuestionType, FieldType, CsvFile } from "@/types/survey";
 import { resolvedResponseMode } from "@/lib/xml/question";
+import { getDefaultFieldType } from "@/lib/surveyFactories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,29 +87,6 @@ const getFieldConfig = (questionType: QuestionType, fieldType: FieldType) => {
     // Whether to show field type selector (or auto-set)
     allowFieldTypeEdit: isTextInput || isCalculated,
   };
-};
-
-// Get default field type when question type changes
-const getDefaultFieldType = (questionType: QuestionType): FieldType => {
-  switch (questionType) {
-    case 'radio':
-      return 'integer';
-    case 'checkbox':
-      return 'text';
-    case 'date':
-      return 'date';
-    case 'datetime':
-      return 'datetime';
-    case 'information':
-      return 'n/a';
-    case 'calculated':
-      return 'integer';
-    case 'combobox':
-      return 'text';
-    case 'text':
-    default:
-      return 'text';
-  }
 };
 
 // Get available field types for a question type

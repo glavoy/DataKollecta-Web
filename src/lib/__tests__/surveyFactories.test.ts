@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { QuestionType } from "@/types/survey";
+import { QuestionType, SurveyQuestion } from "@/types/survey";
 
 import {
   getDefaultFieldType,
@@ -37,12 +37,28 @@ describe("getDefaultFieldType", () => {
     expect(getDefaultFieldType("information")).toBe("n/a");
   });
 
-  it("never returns undefined for any question type", () => {
-    // The switch has a default, so this guards the arms rather than the fall
-    // through: a new QuestionType that nobody adds a case for silently gets
-    // 'text', which is wrong for anything storing a code or a date.
+  it("pins every arm, because QuestionEditor offers no alternative", () => {
+    // Not just `toBeTruthy()`. QuestionEditor.getAvailableFieldTypes falls
+    // through to `[{ value: getDefaultFieldType(type) }]` for every type it
+    // has no explicit list for -- date, datetime, information, checkbox --
+    // so for those the value here is the ONLY option the dropdown offers. A
+    // wrong answer isn't a bad default a user can correct; it's a correct
+    // one they cannot reach. The switch's `default` means a newly added
+    // QuestionType silently gets 'text', and this table is what fails when
+    // that happens.
+    const expected: Record<QuestionType, SurveyQuestion["fieldtype"]> = {
+      text: "text",
+      radio: "integer",
+      checkbox: "text",
+      combobox: "text",
+      date: "date",
+      datetime: "datetime",
+      information: "n/a",
+      calculated: "integer",
+    };
+
     for (const type of ALL_TYPES) {
-      expect(getDefaultFieldType(type)).toBeTruthy();
+      expect(getDefaultFieldType(type)).toBe(expected[type]);
     }
   });
 });

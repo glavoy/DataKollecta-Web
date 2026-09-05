@@ -7,10 +7,12 @@ import { SurveyForm, SurveyQuestion, QuestionType } from "@/types/survey";
  * already; what they lacked was a test, and living inside a 1,033-line
  * component is why they never got one.
  *
- * Note `QuestionEditor.tsx` declares its own `getDefaultFieldType` with a
- * different signature. Whether the two should be one function is a behaviour
- * question -- they may not agree -- so it is deliberately left alone here
- * rather than folded into a move.
+ * `getDefaultFieldType` is the only definition of a question type's default
+ * field type. `QuestionEditor.tsx` used to carry an identical copy and now
+ * imports this one; its `getAvailableFieldTypes` makes the returned value the
+ * *only* selectable option for date, datetime, information and checkbox, so
+ * these arms are pinned individually by the test rather than only checked for
+ * being non-empty.
  */
 
 export const getDefaultFieldType = (
