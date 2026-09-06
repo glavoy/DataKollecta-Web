@@ -1,6 +1,12 @@
 # To Do
 
+- hide sidebar for mobile versio
+- add 'Download App' on website
 - add error checking before creating/saving the xml file/survey.zip - complete error checking
+  - specifically: a fieldname, a database-backed response list's table/column, and every crfs
+    identifier cell must be a plain identifier (letter or underscore, then letters, digits and
+    underscores). The app enforces this on install now and refuses the whole survey otherwise,
+    so the designer can currently build and upload a package that no device will accept.
 - when deleting a survey, there is a confirmation box, but add another level of security - maybe typing in the surveyID to confirm
 - add a cancel button to the 'Upload Survey Package' dialog box
 
