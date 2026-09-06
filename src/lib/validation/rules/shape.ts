@@ -211,8 +211,78 @@ function dateRangeFindings(q: SurveyQuestion, index: number): Finding[] {
       });
     }
   }
+  if (findings.length > 0) return findings;
+
+  const low = dateBoundInDays(min);
+  const high = dateBoundInDays(max);
+  if (low !== undefined && high !== undefined && low > high) {
+    findings.push({
+      ...base,
+      ruleId: RULE.dateRangeInverted,
+      severity: 'error',
+      message: `The minimum date (${min}) is after the maximum date (${max}), so no date is accepted.`,
+    });
+  }
 
   return findings;
+}
+
+const DAYS_PER_UNIT: Record<string, number> = { d: 1, w: 7, m: 30, y: 365 };
+
+/**
+ * A date bound as days from today, so a relative offset and a fixed date
+ * compare. Ported from SurveyGen's `_date_bound_in_days`; the unit lengths
+ * are the app's.
+ */
+function dateBoundInDays(value: string): number | undefined {
+  const v = value.trim();
+  if (v === '0' || v === '+0d' || v === '-0d') return 0;
+  const offset = /^([+-])(\d+)([dwmy])$/.exec(v);
+  if (offset) {
+    const days = Number(offset[2]) * DAYS_PER_UNIT[offset[3]];
+    return offset[1] === '+' ? days : -days;
+  }
+  if (HARDCODED_DATE_RE.test(v)) {
+    const fixed = Date.UTC(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)));
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.round((fixed - today) / 86_400_000);
+  }
+  return undefined;
+}
+
+/**
+ * The mask reading `MaskedTextInputFormatter` uses: `[...]` is one character,
+ * anything else a literal carried through. A mask that fills more characters
+ * than Max Characters allows can never be typed in full; on a fixed-length
+ * field a mask of any other length can never be filled.
+ */
+const MASK_SLOT_RE = /\[([^\]]+)\]|([^[]+)/g;
+
+function maskLengthFindings(q: SurveyQuestion, index: number): Finding[] {
+  if (!q.mask || q.maxCharacters === undefined) return [];
+  let length = 0;
+  for (const m of q.mask.matchAll(MASK_SLOT_RE)) {
+    length += m[1] !== undefined ? 1 : m[2].length;
+  }
+  const bad = q.fixedLength ? length !== q.maxCharacters : length > q.maxCharacters;
+  if (!bad) return [];
+  return [
+    {
+      scope: 'question',
+      questionId: q.id,
+      questionIndex: index,
+      fieldname: q.fieldname,
+      part: 'mask',
+      ruleId: RULE.maskLengthMismatch,
+      severity: 'error',
+      subject: q.mask,
+      message: `The mask fills ${length} characters but Max Characters is ${q.fixedLength ? `exactly ${q.maxCharacters}` : q.maxCharacters}.`,
+      hint: q.fixedLength
+        ? 'A value matching the mask can never be the right length.'
+        : 'A value matching the mask cannot be typed in full.',
+    },
+  ];
 }
 
 const CONVENTIONAL_SPECIAL_VALUES: Record<'dontKnow' | 'refuse', string> = {
@@ -282,6 +352,7 @@ export function shapeFindings(form: SurveyForm): Finding[] {
     findings.push(...widthFindings(q, index));
     findings.push(...numericRangeFindings(q, index));
     findings.push(...dateRangeFindings(q, index));
+    findings.push(...maskLengthFindings(q, index));
     findings.push(...specialAnswerFindings(q, index));
   });
 

@@ -282,6 +282,52 @@ describe('cross-form and package rules', () => {
   });
 });
 
+describe('comparison semantics, shape additions, cross-form fields', () => {
+  it('covers logic operators, literals, skip values, csv columns, date order, mask length, redefined fields', () => {
+    record(
+      pkgOf(
+        [
+          formOf('t8', [
+            q('sex', {
+              type: 'radio',
+              fieldtype: 'integer',
+              responses: [
+                { id: 'r1', value: '1', label: 'M' },
+                { id: 'r2', value: '2', label: 'F' },
+              ],
+            }),
+            q('age', { logicCheck: [{ condition: 'age >> 18 and sex = 3', message: 'm' }] }),
+            q('preg', { preskip: [skip('sex', 'after', { response: '3' })] }),
+            q('village', {
+              type: 'radio',
+              fieldtype: 'integer',
+              responseMode: 'dynamic',
+              dynamicResponses: {
+                source: 'csv',
+                file: 'v.csv',
+                displayColumn: 'name',
+                valueColumn: 'code',
+                filters: [{ column: 'regoin', operator: '=', value: '[[sex]]' }],
+              },
+            }),
+            q('when', { type: 'date', fieldtype: 'date', dateRange: { minDate: '+0d', maxDate: '-1y' } }),
+            q('pid', { maxCharacters: 7, fixedLength: true, mask: 'OP-[0-9][0-9][0-9][0-9][0-9][0-9][0-9]' }),
+            q('after'),
+          ]),
+          formOf('t8b', [
+            q('sex', {
+              type: 'radio',
+              fieldtype: 'integer',
+              responses: [{ id: 'r1', value: '1', label: 'M' }],
+            }),
+          ], { parenttable: 't8', linkingfield: 'after' }),
+        ],
+        { csvFiles: [{ id: 'c', filename: 'v.csv', content: 'region,code,name\n1,11,A\n' }] },
+      ),
+    );
+  });
+});
+
 it('every declared rule id was produced by at least one package above', () => {
   const missing = Object.values(RULE).filter((id) => !covered.has(id));
   expect(missing, `Rules never triggered: ${missing.join(', ')}`).toEqual([]);

@@ -8,10 +8,11 @@
  * and none of this was checked before.
  */
 
-import type { SurveyForm, SurveyPackage } from '@/types/survey';
+import type { SurveyForm, SurveyPackage, SurveyQuestion } from '@/types/survey';
 import { RULE, type Finding } from '../types';
 import { isBaseForm } from '@/lib/xml/manifest';
 import { buildFormScope } from '../scope';
+import { LEADING_SYSTEM_FIELDS, TRAILING_SYSTEM_FIELDS, KNOWN_AUTOMATIC_FIELDNAMES } from '@/lib/xml/systemFields';
 
 const TABLENAME_RE = /^[a-z_][a-z0-9_]*$/;
 
@@ -284,6 +285,62 @@ function packageIdentityFindings(pkg: SurveyPackage): Finding[] {
   return findings;
 }
 
+/**
+ * One fieldname, two forms, two meanings. A linking field recurs by design
+ * and a calculated copy of a parent value is common; a question re-asked in
+ * a second form with different codes is not -- the export puts both under
+ * one column name, so the two look comparable when they are not. A warning:
+ * real surveys do this on purpose now and then. Ported from SurveyGen's
+ * `_check_fields_consistent_across_forms`.
+ */
+function fieldRedefinedFindings(pkg: SurveyPackage): Finding[] {
+  const findings: Finding[] = [];
+  const skipNames = new Set<string>([
+    ...LEADING_SYSTEM_FIELDS.map((f) => f.fieldname.toLowerCase()),
+    ...TRAILING_SYSTEM_FIELDS.map((f) => f.fieldname.toLowerCase()),
+    ...[...KNOWN_AUTOMATIC_FIELDNAMES].map((n) => n.toLowerCase()),
+  ]);
+  for (const form of pkg.forms) {
+    for (const col of splitList(form.linkingfield)) skipNames.add(col.toLowerCase());
+  }
+
+  const seen = new Map<string, Array<{ form: SurveyForm; q: SurveyQuestion; signature: string }>>();
+  for (const form of pkg.forms) {
+    for (const q of form.questions) {
+      const key = q.fieldname?.trim().toLowerCase();
+      if (!key || skipNames.has(key)) continue;
+      if (q.type === 'calculated' || q.type === 'information') continue;
+      const codes = (q.responses ?? []).map((r) => r.value).sort();
+      const signature = `${q.type}/${q.fieldtype}/${codes.join(',')}`;
+      const list = seen.get(key) ?? [];
+      list.push({ form, q, signature });
+      seen.set(key, list);
+    }
+  }
+
+  for (const [, uses] of seen) {
+    if (uses.length < 2 || new Set(uses.map((u) => u.signature)).size < 2) continue;
+    const where = uses.map((u) => `'${u.form.tablename}' (${u.signature})`).join(' and ');
+    for (const use of uses) {
+      findings.push({
+        scope: 'question',
+        formId: use.form.id,
+        tablename: use.form.tablename,
+        questionId: use.q.id,
+        questionIndex: use.form.questions.indexOf(use.q),
+        fieldname: use.q.fieldname,
+        part: 'identity',
+        ruleId: RULE.fieldRedefinedAcrossForms,
+        severity: 'warning',
+        subject: use.q.fieldname,
+        message: `'${use.q.fieldname}' is defined differently in ${where}.`,
+        hint: 'The same name with different codes makes the two export columns look comparable when they are not. Rename one, or align the codes.',
+      });
+    }
+  }
+  return findings;
+}
+
 export function packageFindings(pkg: SurveyPackage): Finding[] {
   return [
     ...tablenameFindings(pkg),
@@ -291,5 +348,6 @@ export function packageFindings(pkg: SurveyPackage): Finding[] {
     ...parentFieldReferenceFindings(pkg),
     ...baseFormCountFindings(pkg),
     ...packageIdentityFindings(pkg),
+    ...fieldRedefinedFindings(pkg),
   ];
 }

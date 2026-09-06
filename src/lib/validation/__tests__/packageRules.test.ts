@@ -278,3 +278,44 @@ describe('foreign-key viability (linkingfield against the parent)', () => {
     expect(findings.map((f) => f.ruleId)).toContain(RULE.parentMissing);
   });
 });
+
+describe('fields redefined across forms', () => {
+  const radio = (fieldname: string, values: string[]): SurveyQuestion => ({
+    ...q(fieldname),
+    type: 'radio',
+    fieldtype: 'integer',
+    responses: values.map((v) => ({ id: `${fieldname}-${v}`, value: v, label: v })),
+  });
+
+  it('warns, on both forms, when the same field has different codes', () => {
+    const findings = packageFindings(
+      pkgOf([
+        formOf('first', { questions: [radio('sex', ['1', '2'])] }),
+        formOf('second', { parenttable: 'first', linkingfield: 'hhid', questions: [q('hhid'), radio('sex', ['1', '2', '9'])] }),
+      ]),
+    );
+    const redefined = findings.filter((f) => f.ruleId === RULE.fieldRedefinedAcrossForms);
+    expect(redefined).toHaveLength(2);
+    expect(redefined.every((f) => f.severity === 'warning')).toBe(true);
+    expect(redefined[0].message).toContain("'first'");
+    expect(redefined[0].message).toContain("'second'");
+  });
+
+  it('is silent for the same definition twice, for the linking field, and for a calculated copy', () => {
+    const findings = packageFindings(
+      pkgOf([
+        formOf('first', { questions: [q('hhid'), radio('sex', ['1', '2']), radio('region', ['1', '2'])] }),
+        formOf('second', {
+          parenttable: 'first',
+          linkingfield: 'hhid',
+          questions: [
+            { ...q('hhid'), type: 'calculated' },
+            radio('sex', ['1', '2']),
+            { ...q('region'), type: 'calculated', calculation: { type: 'lookup', field: 'region' } },
+          ],
+        }),
+      ]),
+    );
+    expect(findings.filter((f) => f.ruleId === RULE.fieldRedefinedAcrossForms)).toEqual([]);
+  });
+});

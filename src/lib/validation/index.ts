@@ -21,6 +21,7 @@ import { responsesFindings } from './rules/responses';
 import { calculationFindings } from './rules/calculation';
 import { formManifestFindings } from './rules/formManifest';
 import { packageFindings } from './rules/packageRules';
+import { semanticsFindings } from './rules/semantics';
 
 export function validatePackage(pkg: SurveyPackage): ValidationReport {
   const findings: Finding[] = [];
@@ -32,6 +33,7 @@ export function validatePackage(pkg: SurveyPackage): ValidationReport {
     findings.push(...responsesFindings(form, csvFilenames));
     findings.push(...calculationFindings(form));
     findings.push(...referenceFindings(form));
+    findings.push(...semanticsFindings(form, pkg.csvFiles ?? []));
     findings.push(...formManifestFindings(form));
   }
   findings.push(...packageFindings(pkg));

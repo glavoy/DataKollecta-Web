@@ -34,6 +34,8 @@ export const RULE = {
   numericRangeInverted: 'question.numericCheck.inverted',
   dateRangeMissing: 'question.dateRange.missing',
   dateRangeFormat: 'question.dateRange.format',
+  dateRangeInverted: 'question.dateRange.inverted',
+  maskLengthMismatch: 'question.mask.lengthMismatch',
   fieldTypeInvalidForQuestionType: 'question.fieldtype.invalidForQuestionType',
   specialAnswerCollides: 'question.specialAnswers.collides',
   specialAnswerUnconventional: 'question.specialAnswers.unconventional',
@@ -46,6 +48,12 @@ export const RULE = {
   dynamicDbNoTable: 'question.dynamicResponses.dbNoTable',
   dynamicNoColumns: 'question.dynamicResponses.missingColumns',
   dynamicCsvMissing: 'question.dynamicResponses.csvNotUploaded',
+  dynamicCsvColumnMissing: 'question.dynamicResponses.csvColumnMissing',
+
+  // comparison semantics
+  logicUnknownOperator: 'logicCheck.unknownOperator',
+  logicLiteralNotACode: 'logicCheck.literalNotACode',
+  skipValueNotACode: 'skip.valueNotACode',
 
   // calculation
   calcMissing: 'question.calculation.missing',
@@ -83,6 +91,7 @@ export const RULE = {
   baseFormCount: 'package.baseForm.count',
   surveyIdMissing: 'package.surveyId.missing',
   databaseNameInvalid: 'package.databaseName.invalid',
+  fieldRedefinedAcrossForms: 'package.field.redefinedAcrossForms',
 } as const;
 
 export type RuleId = (typeof RULE)[keyof typeof RULE];

@@ -238,3 +238,38 @@ describe('special answers', () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe('date range order', () => {
+  it('reports a maximum before the minimum, comparing offsets as days', () => {
+    const findings = shapeFindings(formOf([q({ type: 'date', fieldtype: 'date', dateRange: { minDate: '+0d', maxDate: '-1y' } })]));
+    expect(findings).toEqual([expect.objectContaining({ ruleId: RULE.dateRangeInverted })]);
+  });
+
+  it('compares a fixed date against an offset', () => {
+    const findings = shapeFindings(formOf([q({ type: 'date', fieldtype: 'date', dateRange: { minDate: '2999-01-01', maxDate: '0' } })]));
+    expect(findings).toEqual([expect.objectContaining({ ruleId: RULE.dateRangeInverted })]);
+  });
+
+  it('is silent for an ordered range', () => {
+    const findings = shapeFindings(formOf([q({ type: 'date', fieldtype: 'date', dateRange: { minDate: '-100y', maxDate: '+0d' } })]));
+    expect(findings.filter((f) => f.ruleId === RULE.dateRangeInverted)).toEqual([]);
+  });
+});
+
+describe('mask length', () => {
+  it('reports a mask longer than the field', () => {
+    const findings = shapeFindings(formOf([q({ maxCharacters: 7, fixedLength: true, mask: 'OP-[0-9][0-9][0-9][0-9][0-9][0-9][0-9]' })]));
+    expect(findings).toEqual([expect.objectContaining({ ruleId: RULE.maskLengthMismatch })]);
+    expect(findings[0].message).toContain('fills 10 characters');
+  });
+
+  it('reports a fixed-length field whose mask fills a different number', () => {
+    const findings = shapeFindings(formOf([q({ maxCharacters: 7, fixedLength: true, mask: 'OP-[0-9][0-9]' })]));
+    expect(findings).toEqual([expect.objectContaining({ ruleId: RULE.maskLengthMismatch })]);
+  });
+
+  it('is silent for a mask that fits, and a shorter mask on a variable-length field', () => {
+    expect(shapeFindings(formOf([q({ maxCharacters: 7, fixedLength: true, mask: 'OP-[0-9][0-9][0-9][0-9]' })]))).toEqual([]);
+    expect(shapeFindings(formOf([q({ maxCharacters: 10, mask: '[0-9][0-9]:[0-9][0-9]' })]))).toEqual([]);
+  });
+});
