@@ -176,6 +176,32 @@ Two Supabase Edge Functions, source in `supabase/functions/`:
 - **Offline-first** — the backend assumes data arrives late and out of order;
   `collected_at` (when it happened in the field) and `submitted_at`/`synced_at`
   (when it reached the server) are tracked separately.
+
+  **The two are not the same kind of value, and the format says which is
+  which: an offset present means a server instant in UTC; an offset absent
+  means a device wall clock with no known offset.** Everything the server
+  stamps — `submitted_at`, `updated_at`, `formchanges.synced_at` — is
+  `timestamptz` from `now()`. Everything the device reports —
+  `submissions.collected_at`, `formchanges.changed_at`, and the `starttime` /
+  `stoptime` / `startdate` / `lastmod` values inside `data` — is a bare local
+  reading, because `auto_fields.dart` formats a local Dart `DateTime` and
+  Dart emits no offset for one.
+
+  So `collected_at` and `changed_at` are `timestamp without time zone`. They
+  were `timestamptz` until the `20260908144500` migration, which meant
+  Postgres read the offset-less string as UTC and every record in a UTC+3
+  deployment appeared to have been *collected three hours after it was
+  submitted*. Nothing was shifting the value — the column was asserting an
+  offset the device never gave.
+
+  **Consequence to know about: `collected_at` cannot be subtracted from
+  `submitted_at`.** One is a wall clock, the other an instant, and the true
+  instant of collection is not recoverable server-side. Fixing that properly
+  means the app sending an offset (`toUtc()` before `toIso8601String()`, plus
+  updating the app's own local-time consumers) — deliberately out of scope
+  here, and it needs its own migration because casting an offset-bearing
+  string into these columns silently *drops* the offset rather than applying
+  it. `supabase/functions/tests/app-sync.test.ts` pins both behaviours.
 - **RLS is the security boundary**, not application code — every table has row
   level security enabled, and policies are written directly against
   `project_members`, not trusted client-side checks.

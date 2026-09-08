@@ -3,6 +3,7 @@ import {
   admin,
   callFunction,
   createFixture,
+  DEVICE_WALL_CLOCK,
   type Fixture,
   login,
   submission,
@@ -164,7 +165,7 @@ Deno.test("app-sync: a client-supplied surveyor_id is ignored on formchanges", a
         oldvalue: "31",
         newvalue: "32",
         surveyor_id: "supervisor",
-        changed_at: new Date().toISOString(),
+        changed_at: DEVICE_WALL_CLOCK,
       }],
     });
 
@@ -189,6 +190,99 @@ Deno.test("app-sync: submissions record the authenticated username, not the devi
       .eq("local_unique_id", row.local_uuid as string)
       .single();
     assertEquals(data!.surveyor_id, fixture.username);
+  });
+});
+
+// --- Device timestamps are a wall clock, not an instant ---------------------
+
+Deno.test("app-sync: an offset-less collected_at is stored verbatim, not shifted", async () => {
+  // The regression test for the bug this convention exists to prevent.
+  // `collected_at` used to be `timestamptz`, so the app's bare local
+  // wall-clock string was read as UTC -- and in a UTC+3 deployment every
+  // record then looked collected three hours AFTER it was submitted.
+  //
+  // Stored verbatim is the whole assertion: no offset appears, and no
+  // arithmetic is applied. It must also still equal the `stoptime` it was
+  // taken from, since that is where RecordUploader reads it.
+  await withSession({}, async (fixture, token) => {
+    const row = submission(fixture);
+
+    const { status, body } = await sync(token, { submissions: [row] });
+    assertEquals(status, 200, JSON.stringify(body));
+
+    const { data } = await admin
+      .from("submissions")
+      .select("collected_at, submitted_at, data")
+      .eq("local_unique_id", row.local_uuid as string)
+      .single();
+
+    assertEquals(data!.collected_at, DEVICE_WALL_CLOCK);
+    assertEquals(data!.collected_at, data!.data.stoptime);
+
+    // And the server's own column is still a real UTC instant, so the two
+    // conventions stay tellable apart by the presence of an offset.
+    assert(
+      /(Z|[+-]\d\d:?\d\d)$/.test(data!.submitted_at),
+      `submitted_at should carry an offset, got ${data!.submitted_at}`,
+    );
+  });
+});
+
+Deno.test("app-sync: an offset-less changed_at is stored verbatim, not shifted", async () => {
+  await withSession({}, async (fixture, token) => {
+    const uuid = crypto.randomUUID();
+
+    const { status, body } = await sync(token, {
+      submissions: [],
+      formchanges: [{
+        formchanges_uuid: uuid,
+        record_uuid: crypto.randomUUID(),
+        tablename: "enrollee",
+        fieldname: "age",
+        oldvalue: "31",
+        newvalue: "32",
+        changed_at: DEVICE_WALL_CLOCK,
+      }],
+    });
+
+    assertEquals(status, 200, JSON.stringify(body));
+
+    const { data } = await admin
+      .from("formchanges")
+      .select("changed_at, synced_at")
+      .eq("formchanges_uuid", uuid)
+      .single();
+
+    assertEquals(data!.changed_at, DEVICE_WALL_CLOCK);
+    assert(
+      /(Z|[+-]\d\d:?\d\d)$/.test(data!.synced_at),
+      `synced_at should carry an offset, got ${data!.synced_at}`,
+    );
+  });
+});
+
+Deno.test("app-sync: an offset on collected_at is DROPPED, not converted", async () => {
+  // Pinning a known hazard rather than endorsing it. `collected_at` is
+  // `timestamp without time zone`, so casting a string that carries an
+  // offset discards it: +03:00 13:49 is stored as 13:49, not as the 10:49
+  // it actually denotes. Harmless today -- no client sends an offset -- but
+  // the day the app is changed to send real UTC instants, this test fails
+  // and forces the column semantics to be dealt with at the same time.
+  await withSession({}, async (fixture, token) => {
+    const row = submission(fixture, {
+      collected_at: `${DEVICE_WALL_CLOCK}+03:00`,
+    });
+
+    const { status, body } = await sync(token, { submissions: [row] });
+    assertEquals(status, 200, JSON.stringify(body));
+
+    const { data } = await admin
+      .from("submissions")
+      .select("collected_at")
+      .eq("local_unique_id", row.local_uuid as string)
+      .single();
+
+    assertEquals(data!.collected_at, DEVICE_WALL_CLOCK);
   });
 });
 

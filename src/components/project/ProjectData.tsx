@@ -33,24 +33,31 @@ import { format } from "date-fns";
 import JSZip from "jszip";
 import { FormChangesView } from "@/components/FormChangesView";
 import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
-import { buildCsv } from "@/lib/csv";
+import {
+  buildFormChangesCsv,
+  buildSubmissionsCsv,
+  declaredColumns,
+  type ExportField,
+  type ExportFormChange,
+  type ExportSubmission,
+} from "@/lib/dataExport";
 import { groupByLineage, versionByPackageId } from "@/lib/surveyVersion";
 import { useToast } from "@/hooks/use-toast";
-import type { FormChange } from "@/services/submissionService";
 
 /** A question as it arrives from the parsed survey manifest. */
-interface FormField {
-  fieldname?: string;
-  id?: string;
-  type?: string;
-  text?: string;
-}
+type FormField = ExportField;
 
 interface FormWithCount {
   id: string;
   table_name: string;
   display_name: string;
   fields: FormField[];
+  /** Whether this form declares a parent, i.e. carries `parent_uniqueid`. */
+  parent_table: string | null;
+  /** Every question this table_name declares in ANY version of the survey.
+      Used to give a form holding no rows a header, where `fields` alone would
+      only describe the newest version. */
+  allFields: FormField[];
   recordCount: number;
   /** Every version of this survey that could hold rows for this form.
       Versions of one survey deliberately SHARE a table_name -- that is what
@@ -126,7 +133,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
           // definition of a shared table_name wins the dedupe below.
           const { data: forms } = await supabase
             .from('crfs')
-            .select('id, table_name, display_name, fields, survey_package_id')
+            .select('id, table_name, display_name, fields, parent_table, survey_package_id')
             .in('survey_package_id', versionIds)
             .order('display_order');
 
@@ -142,11 +149,26 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
           }
 
           const byTable = new Map<string, typeof forms[number]>();
+          // Every question a table_name declares in ANY version, accumulated
+          // alongside the newest definition. The newest one is what the data
+          // browser should show, but an export needs the union: a form holding
+          // no rows gets its header from here, and it has to match the union
+          // of columns a populated CSV would carry.
+          const fieldsByTable = new Map<string, Map<string, FormField>>();
           for (const form of forms) {
             const existing = byTable.get(form.table_name);
             const existingVersion = existing ? versionByPackage[existing.survey_package_id] ?? 0 : -1;
             const thisVersion = versionByPackage[form.survey_package_id] ?? 0;
             if (thisVersion > existingVersion) byTable.set(form.table_name, form);
+
+            let union = fieldsByTable.get(form.table_name);
+            if (!union) {
+              union = new Map<string, FormField>();
+              fieldsByTable.set(form.table_name, union);
+            }
+            for (const field of (form.fields as FormField[] | null) ?? []) {
+              if (field?.fieldname) union.set(field.fieldname, field);
+            }
           }
           const uniqueForms = Array.from(byTable.values());
 
@@ -162,6 +184,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
 
               return {
                 ...form,
+                allFields: Array.from(fieldsByTable.get(form.table_name)?.values() ?? []),
                 survey_package_ids: versionIds,
                 versionByPackage,
                 recordCount: count || 0,
@@ -232,66 +255,11 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     currentPage * pageSize
   );
 
-  /**
-   * One CSV per form, covering every version of the survey.
-   *
-   * Columns are the union across versions, which is the right shape rather
-   * than a compromise: it is exactly what the phone's own SQLite ends up with
-   * after _syncSurveyTable ALTER TABLEs a new question in, so a v1 row is
-   * blank in a v2-only column in both places. `survey_version` leads the row
-   * so a reader can always tell which version produced it -- without it, a
-   * blank cell is ambiguous between "not asked in that version" and "asked
-   * and skipped".
-   */
-  const generateCSV = (submissions: Submission[], versionByPackage: Record<string, number>): string => {
-    if (!submissions || submissions.length === 0) return '';
-
-    // Get all unique field names, sorted for a deterministic column order
-    // rather than whichever submission happened to introduce a key first.
-    const allFieldNames = new Set<string>();
-    submissions.forEach(sub => {
-      if (sub.data) {
-        Object.keys(sub.data).forEach(key => allFieldNames.add(key));
-      }
-    });
-    const fieldNames = Array.from(allFieldNames).sort();
-
-    const headers = ['survey_version', 'local_unique_id', 'surveyor_id', 'collected_at', 'submitted_at', ...fieldNames];
-    const rows = submissions.map(sub => [
-      versionByPackage[sub.survey_package_id] ?? '',
-      sub.local_unique_id,
-      sub.surveyor_id,
-      sub.collected_at,
-      sub.submitted_at,
-      ...fieldNames.map(fieldName => sub.data?.[fieldName]),
-    ]);
-
-    return buildCsv(headers, rows);
-  };
-
-  const generateFormChangesCSV = (formchanges: FormChange[]): string => {
-    if (!formchanges || formchanges.length === 0) return '';
-
-    const headers = ['formchanges_uuid', 'record_uuid', 'tablename', 'fieldname', 'oldvalue', 'newvalue', 'surveyor_id', 'changed_at'];
-    const rows = formchanges.map(fc => [
-      fc.formchanges_uuid,
-      fc.record_uuid,
-      fc.tablename,
-      fc.fieldname,
-      fc.oldvalue,
-      fc.newvalue,
-      fc.surveyor_id,
-      fc.changed_at,
-    ]);
-
-    return buildCsv(headers, rows);
-  };
-
   // Export single form to CSV
   const handleExportSingleForm = () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0 || !selectedForm) return;
 
-    const csvContent = generateCSV(filteredSubmissions, selectedForm.versionByPackage);
+    const csvContent = buildSubmissionsCsv(filteredSubmissions, selectedForm.versionByPackage);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -320,7 +288,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
       // select(), or a form with more than max_rows submissions silently
       // ships an incomplete CSV inside an otherwise "successful" export.
       for (const form of survey.forms) {
-        const formSubmissions = await fetchAllRows((from, to) =>
+        const formSubmissions = await fetchAllRows<ExportSubmission>((from, to) =>
           supabase
             .from('submissions')
             .select('*')
@@ -330,10 +298,19 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
             .range(from, to),
         );
 
-        if (formSubmissions.length > 0) {
-          const csvContent = generateCSV(formSubmissions, form.versionByPackage);
-          zip.file(`${form.table_name}.csv`, csvContent);
-        }
+        // Unconditional: a form with no rows ships as a header-only CSV
+        // rather than being left out. Omitting it made "nothing was
+        // collected for this form" indistinguishable from a broken export --
+        // a manifest declaring four forms would produce three files with
+        // nothing to say which case it was.
+        zip.file(
+          `${form.table_name}.csv`,
+          buildSubmissionsCsv(
+            formSubmissions,
+            form.versionByPackage,
+            declaredColumns(form.allFields, { hasParent: !!form.parent_table }),
+          ),
+        );
       }
 
       // Export formchanges for this survey.
@@ -360,7 +337,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
         const formchanges = (
           await Promise.all(
             chunkIds(recordUuids).map((chunk) =>
-              fetchAllRows((from, to) =>
+              fetchAllRows<ExportFormChange>((from, to) =>
                 supabase.from('formchanges').select('*').in('record_uuid', chunk).range(from, to),
               ),
             ),
@@ -368,8 +345,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
         ).flat();
 
         if (formchanges.length > 0) {
-          const csvContent = generateFormChangesCSV(formchanges);
-          zip.file('formchanges.csv', csvContent);
+          zip.file('formchanges.csv', buildFormChangesCsv(formchanges));
         }
       }
 

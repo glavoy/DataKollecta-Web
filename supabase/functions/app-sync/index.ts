@@ -414,7 +414,30 @@ Deno.serve(async (req) => {
                             device_id: submission.device_id,
                             surveyor_id: session.app_credentials.username,
                             app_version: submission.swver,
+                            // Stored verbatim, and the column is
+                            // `timestamp without time zone` so that stays
+                            // true. The app sends its `stoptime`: a bare
+                            // local wall-clock reading with no offset,
+                            // because `auto_fields.dart` formats a local
+                            // `DateTime`. This used to land in a
+                            // `timestamptz`, which read the offset-less
+                            // string as UTC and made every record look
+                            // collected three hours after it was submitted
+                            // in a UTC+3 deployment.
+                            //
+                            // The contract is therefore: no offset, and no
+                            // claim about one. If a future client ever does
+                            // send an offset, the cast into the column
+                            // silently DROPS it -- storing UTC digits in a
+                            // wall-clock column, which is the same class of
+                            // bug in the other direction. A test pins that
+                            // behaviour so the app change that starts
+                            // sending offsets has to deal with it here.
                             collected_at: submission.collected_at,
+                            // Server-set, genuinely UTC, and `timestamptz`
+                            // -- like `submitted_at`. Keeping the two kinds
+                            // of column distinct is what lets a reader tell
+                            // a server instant from a device reading.
                             updated_at: new Date().toISOString(),
                         },
                     });
@@ -467,7 +490,11 @@ Deno.serve(async (req) => {
                         // No effect on GiSTX, which FTPs the whole
                         // SQLite file and never calls this function.
                         surveyor_id: session.app_credentials.username,
+                        // The device's own wall clock for the edit, with no
+                        // offset -- same contract, and same reasoning, as
+                        // `submissions.collected_at` above.
                         changed_at: change.changed_at,
+                        // Server-set and genuinely UTC, like `submitted_at`.
                         synced_at: new Date().toISOString(),
                     },
                 });

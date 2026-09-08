@@ -317,6 +317,21 @@ export async function login(fixture: Fixture): Promise<string> {
   return body.token as string;
 }
 
+/**
+ * A device timestamp exactly as the app formats one: local wall clock,
+ * microsecond precision, and **no offset suffix**.
+ *
+ * `auto_fields.dart` builds these from a local Dart `DateTime`, whose
+ * `toIso8601String()` emits no offset. Using `new Date().toISOString()` here
+ * instead -- which appends `Z` -- made the fixtures unfaithful in exactly the
+ * way that hid the collected_at bug: no test sent what a real device sends, so
+ * nothing exercised the offset-less path at all.
+ *
+ * A fixed literal rather than "now" so a test can assert the stored value
+ * byte-for-byte.
+ */
+export const DEVICE_WALL_CLOCK = "2026-09-08T13:49:08.820209";
+
 /** One submission, shaped the way RecordUploader sends them. */
 export function submission(
   fixture: Fixture,
@@ -328,8 +343,15 @@ export function submission(
     local_uuid: localUuid,
     device_id: "test-device",
     swver: "DataKollecta test",
-    collected_at: new Date().toISOString(),
-    data: { survey_id: fixture.surveyId, uniqueid: localUuid, subjid: "21050050001" },
+    // RecordUploader sends `data['stoptime']` as the wire `collected_at`, so
+    // the two agree on a real device. Kept that way here.
+    collected_at: DEVICE_WALL_CLOCK,
+    data: {
+      survey_id: fixture.surveyId,
+      uniqueid: localUuid,
+      subjid: "21050050001",
+      stoptime: DEVICE_WALL_CLOCK,
+    },
     ...overrides,
   };
 }
