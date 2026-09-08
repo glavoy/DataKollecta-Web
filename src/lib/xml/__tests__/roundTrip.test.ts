@@ -16,6 +16,7 @@ import { generateFormXml, parseSurveyDocument } from '../form';
 import {
   END_OF_QUESTIONS_FIELDNAME,
   LEADING_SYSTEM_FIELDS,
+  PARENT_LINK_FIELD,
   TRAILING_SYSTEM_FIELDS,
 } from '../systemFields';
 import type { SurveyForm } from '@/types/survey';
@@ -116,6 +117,63 @@ describe.each(NAMES)('%s.xml', (name) => {
     for (const q of questionsOf(canonical(generateFormXml(formOf(original, name))))) {
       expect(q.children.filter((c) => c.name === 'responses').length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('the parent link on a child form', () => {
+  // `vaccination_status` is a child of `enrollee` in the manifest fixture,
+  // but these XML fixtures predate `parent_uniqueid`, so the parent is set
+  // here rather than read from them.
+  const childOf = (name: string, parenttable: string): SurveyForm => ({
+    ...formOf(load(name), name),
+    parenttable,
+  });
+
+  const form = childOf('vaccination_status', 'enrollee');
+
+  it('emits it once, as the app needs it to declare the foreign key', () => {
+    const emitted = questionsOf(canonical(generateFormXml(form))).filter(
+      (x) => x.attrs.fieldname === PARENT_LINK_FIELD.fieldname,
+    );
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].attrs.fieldtype).toBe(PARENT_LINK_FIELD.fieldtype);
+    // Its value is carried in by the app, never computed on the device.
+    expect(emitted[0].children.filter((c) => c.name === 'calculation')).toEqual([]);
+  });
+
+  it('sits after the trailing block and before the end screen, as SurveyGen writes it', () => {
+    const emitted = fieldnamesOf(canonical(generateFormXml(form)));
+    const tail = TRAILING_SYSTEM_FIELDS.map((f) => f.fieldname);
+
+    expect(emitted.slice(-(tail.length + 2), -1)).toEqual([
+      ...tail,
+      PARENT_LINK_FIELD.fieldname,
+    ]);
+    expect(emitted[emitted.length - 1]).toBe(END_OF_QUESTIONS_FIELDNAME);
+  });
+
+  it('does not accumulate across a generate/parse/generate cycle', () => {
+    const reparsed: SurveyForm = {
+      ...form,
+      questions: parseSurveyDocument(generateFormXml(form)).questions,
+    };
+
+    expect(reparsed.questions.map((x) => x.fieldname)).not.toContain(
+      PARENT_LINK_FIELD.fieldname,
+    );
+    expect(
+      fieldnamesOf(canonical(generateFormXml(reparsed))).filter(
+        (f) => f === PARENT_LINK_FIELD.fieldname,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('is absent from the base form in the same package', () => {
+    const base = formOf(load('enrollee'), 'enrollee');
+    expect(fieldnamesOf(canonical(generateFormXml(base)))).not.toContain(
+      PARENT_LINK_FIELD.fieldname,
+    );
   });
 });
 

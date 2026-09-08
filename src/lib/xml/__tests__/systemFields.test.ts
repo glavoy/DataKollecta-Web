@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  END_OF_QUESTIONS_FIELDNAME,
   GENERATED_END_TEXT,
   LEADING_SYSTEM_FIELDS,
+  PARENT_LINK_FIELD,
   TRAILING_SYSTEM_FIELDS,
   isKnownAutomaticFieldname,
   isReservedFieldname,
@@ -87,10 +89,56 @@ describe('withSystemFields', () => {
   });
 });
 
+describe('the parent link field', () => {
+  const parent = PARENT_LINK_FIELD.fieldname;
+
+  it('is emitted on a child form, after the trailing block and before the end screen', () => {
+    const out = names(withSystemFields([q('a')], undefined, { hasParent: true }));
+    const tail = TRAILING_SYSTEM_FIELDS.map((f) => f.fieldname);
+
+    expect(out.slice(-(tail.length + 2), -1)).toEqual([...tail, parent]);
+    expect(out[out.length - 1]).toBe(END_OF_QUESTIONS_FIELDNAME);
+  });
+
+  it('is absent on a base form -- it would name a parent that does not exist', () => {
+    expect(names(withSystemFields([q('a')]))).not.toContain(parent);
+    expect(names(withSystemFields([q('a')], undefined, { hasParent: false }))).not.toContain(parent);
+  });
+
+  it('carries the fieldtype the app expects and no calculation', () => {
+    const out = withSystemFields([q('a')], undefined, { hasParent: true });
+    const field = out.find((x) => x.fieldname === parent);
+
+    expect(field?.fieldtype).toBe(PARENT_LINK_FIELD.fieldtype);
+    expect(field?.type).toBe('calculated');
+    expect(field?.calculation).toBeUndefined();
+  });
+
+  it('is idempotent on a child form', () => {
+    const opts = { hasParent: true };
+    const once = withSystemFields([q('a')], undefined, opts);
+    expect(withSystemFields(once, undefined, opts)).toEqual(once);
+  });
+
+  it('is removed once the form no longer declares a parent', () => {
+    // A form whose parenttable was cleared: the leftover row must go, not
+    // stay stranded pointing at a table that is no longer the parent.
+    const asChild = withSystemFields([q('a')], undefined, { hasParent: true });
+    expect(names(withSystemFields(asChild))).not.toContain(parent);
+  });
+});
+
 describe('stripGeneratedQuestions', () => {
   it('is the inverse of withSystemFields for authored content', () => {
     const authored = [q('a'), q('b')];
     expect(stripGeneratedQuestions(withSystemFields(authored)).questions).toEqual(authored);
+  });
+
+  it('removes the parent link, so it is never persisted as an authored question', () => {
+    const stored = withSystemFields([q('a')], undefined, { hasParent: true });
+    expect(names(stored)).toContain(PARENT_LINK_FIELD.fieldname);
+
+    expect(stripGeneratedQuestions(stored).questions).toEqual([q('a')]);
   });
 
   it('reports custom end-screen text but not the generated default', () => {
@@ -105,10 +153,12 @@ describe('name classification', () => {
   it('separates reserved from computed-automatic', () => {
     expect(isReservedFieldname('uniqueid')).toBe(true);
     expect(isReservedFieldname('STOPTIME')).toBe(true);
+    expect(isReservedFieldname('parent_uniqueid')).toBe(true);
     expect(isReservedFieldname('doy')).toBe(false);
 
     expect(isKnownAutomaticFieldname('doy')).toBe(true);
     expect(isKnownAutomaticFieldname('yyyy')).toBe(true);
     expect(isKnownAutomaticFieldname('uniqueid')).toBe(false);
+    expect(isKnownAutomaticFieldname('parent_uniqueid')).toBe(false);
   });
 });

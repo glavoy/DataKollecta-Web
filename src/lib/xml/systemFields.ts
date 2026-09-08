@@ -48,8 +48,31 @@ export const TRAILING_SYSTEM_FIELDS: readonly SystemField[] = [
   { fieldname: 'stoptime', fieldtype: 'datetime' },
 ];
 
+/**
+ * The parent link, written only on a form that declares a `parenttable`.
+ *
+ * Deliberately not part of `TRAILING_SYSTEM_FIELDS`: that array is injected
+ * unconditionally, and a `parent_uniqueid` column on a base form would name a
+ * parent that does not exist. This one follows from `crfs.parenttable`, so
+ * nothing an author can type decides whether it is present.
+ *
+ * Its value is not computed. The app carries the parent record's `uniqueid` in
+ * via `prepopulatedAnswers` when the child is created (`auto_fields.dart`), so
+ * the question exists purely to declare the column -- and declaring it is what
+ * matters: `survey_table_schema.dart` adds the
+ * `FOREIGN KEY (parent_uniqueid) REFERENCES <parenttable>(uniqueid)` only when
+ * the question is present in the XML, and otherwise skips the constraint
+ * silently. Mirrors `PARENT_LINK_FIELD` in SurveyGen's `models.py`.
+ */
+export const PARENT_LINK_FIELD: SystemField = {
+  fieldname: 'parent_uniqueid',
+  fieldtype: 'text',
+};
+
 export const RESERVED_SYSTEM_FIELDNAMES: ReadonlySet<string> = new Set(
-  [...LEADING_SYSTEM_FIELDS, ...TRAILING_SYSTEM_FIELDS].map((f) => f.fieldname),
+  [...LEADING_SYSTEM_FIELDS, ...TRAILING_SYSTEM_FIELDS, PARENT_LINK_FIELD].map(
+    (f) => f.fieldname,
+  ),
 );
 
 /**
@@ -116,11 +139,14 @@ function isEndOfQuestions(q: SurveyQuestion): boolean {
  *
  * Drops any declared reserved field first, so this is idempotent for any input
  * including its own output. That is what makes an import/export round trip
- * safe without relying on the importer having stripped them.
+ * safe without relying on the importer having stripped them -- and it is why
+ * `hasParent: false` removes a `parent_uniqueid` left over from a form that
+ * used to have a parent rather than leaving it stranded.
  */
 export function withSystemFields(
   questions: readonly SurveyQuestion[],
   endText?: string,
+  opts?: { hasParent?: boolean },
 ): SurveyQuestion[] {
   const authored = questions.filter(
     (q) => !isReservedFieldname(q.fieldname ?? '') && !isEndOfQuestions(q),
@@ -134,6 +160,7 @@ export function withSystemFields(
     ...LEADING_SYSTEM_FIELDS.map(systemQuestion),
     ...authored,
     ...TRAILING_SYSTEM_FIELDS.map(systemQuestion),
+    ...(opts?.hasParent ? [systemQuestion(PARENT_LINK_FIELD)] : []),
     endOfQuestions(text),
   ];
 }

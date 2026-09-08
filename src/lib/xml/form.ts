@@ -18,7 +18,12 @@ const parser = new XMLParser({
 });
 
 export function generateFormXml(form: SurveyForm): string {
-  const questions = withSystemFields(form.questions ?? [], form.endOfQuestionsText);
+  const questions = withSystemFields(form.questions ?? [], form.endOfQuestionsText, {
+    // The parent link is a property of the manifest, not of the question
+    // list. An empty-string `parenttable` means "no parent" -- that is what
+    // `FormManifestEditor` writes when the author clears the field.
+    hasParent: !!form.parenttable?.trim(),
+  });
   return renderDocument(el('survey', {}, questions.map(emitQuestion)));
 }
 

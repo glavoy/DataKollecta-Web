@@ -19,7 +19,6 @@
 - needs to be a better way to enter: Don't Know, Refuse to Answer and Not Applicable - remove N/A completely
 - remove button type
 
-- Force all users to use MFA
 - ensure the invited_by column in the project_members table gets populated when adding someone to a project
 - upload a zip file works, but need to test creating a survey from scratch to see if it saves properly
 - there is no way to change the password of a field user - need to delete and recreate

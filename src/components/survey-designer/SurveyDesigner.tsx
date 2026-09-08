@@ -57,6 +57,7 @@ import SystemFieldRow from "./SystemFieldRow";
 import {
   LEADING_SYSTEM_FIELDS,
   TRAILING_SYSTEM_FIELDS,
+  PARENT_LINK_FIELD,
   END_OF_QUESTIONS_FIELDNAME,
   GENERATED_END_TEXT,
 } from "@/lib/xml/systemFields";
@@ -727,6 +728,16 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
                 {TRAILING_SYSTEM_FIELDS.map((f) => (
                   <SystemFieldRow key={f.fieldname} fieldname={f.fieldname} caption="Set automatically" />
                 ))}
+                {/* Only on a child form, matching what generateFormXml emits:
+                    its value is the parent record's uniqueid, carried in by
+                    the app, not computed here or on the device. */}
+                {form.parenttable?.trim() && (
+                  <SystemFieldRow
+                    key={PARENT_LINK_FIELD.fieldname}
+                    fieldname={PARENT_LINK_FIELD.fieldname}
+                    caption={`Set from the parent '${form.parenttable.trim()}' record`}
+                  />
+                )}
                 <SystemFieldRow
                   key={END_OF_QUESTIONS_FIELDNAME}
                   fieldname={END_OF_QUESTIONS_FIELDNAME}

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { CALC_REQUIRED, calculationFindings } from '../rules/calculation';
+import { identityFindings } from '../rules/identity';
 import { CALC_SPEC } from '@/lib/xml/calculation';
+import { normalizeStoredQuestions } from '@/lib/xml/normalize';
 import { RULE } from '../types';
 import type { CalculationConfig, SurveyForm, SurveyQuestion } from '@/types/survey';
 
@@ -49,6 +51,26 @@ describe('missing calculation', () => {
   it('does not apply to a non-calculated question', () => {
     const findings = calculationFindings(formOf([{ ...q('a'), type: 'text' }]));
     expect(findings.filter((f) => f.ruleId === RULE.calcMissing)).toEqual([]);
+  });
+
+  it('is not reached by the parent link at all -- that row is stripped before validation', () => {
+    // The reported bug: SurveyGen emits `parent_uniqueid` on every child
+    // form as an automatic question with no calculation, so before it was
+    // reserved here it survived import as an authored question and this rule
+    // fired once per child form -- an error, which blocks Publish. Asserted
+    // through the strip rather than as a rule exemption, because keeping the
+    // row would also mean re-exporting it at whatever position it landed in.
+    const stored = [q('a', { type: 'text' }), q('parent_uniqueid')];
+    const form = formOf(normalizeStoredQuestions(stored).questions, {
+      parenttable: 'household',
+      linkingfield: 'a',
+    });
+
+    expect(form.questions.map((x) => x.fieldname)).toEqual(['a']);
+    expect(calculationFindings(form).filter((f) => f.ruleId === RULE.calcMissing)).toEqual([]);
+    expect(
+      identityFindings(form).filter((f) => f.ruleId === RULE.fieldnameReserved),
+    ).toEqual([]);
   });
 });
 
