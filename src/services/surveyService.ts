@@ -306,7 +306,7 @@ export const surveyService = {
    * Loads the survey package for a specific survey_package_id.
    * Returns the survey with all its CRFs/questionnaires.
    */
-  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null; status: SurveyStatus; archivedAt: string | null; surveyCode: string; version: number }> {
+  async getSurveyPackage(surveyPackageId: string): Promise<{ pkg: SurveyPackage; serverUpdatedAt: string | null; status: SurveyStatus; surveyCode: string; version: number }> {
     // 1. Fetch the survey package
     const { data: survey, error: surveyError } = await supabase
       .from('survey_packages')
@@ -412,7 +412,6 @@ export const surveyService = {
       pkg,
       serverUpdatedAt: survey.updated_at ?? null,
       status: survey.status as SurveyStatus,
-      archivedAt: survey.archived_at ?? null,
       surveyCode: (survey.survey_code as string) ?? survey.name,
       version: (survey.version as number) ?? 1,
     };
@@ -555,25 +554,6 @@ export const surveyService = {
     const { error } = await supabase
       .from('survey_packages')
       .update(update)
-      .eq('id', surveyPackageId);
-
-    if (error) throw error;
-  },
-
-  /**
-   * Archives or unarchives a survey. Deliberately separate from
-   * updateSurveyStatus: archiving is an independent axis from lifecycle
-   * status (see the comment on archived_at in the lifecycle migration) and
-   * works at ANY status, locked included -- the lock trigger's content-diff
-   * excludes archived_at for exactly this reason.
-   */
-  async setSurveyArchived(surveyPackageId: string, archived: boolean): Promise<void> {
-    const { error } = await supabase
-      .from('survey_packages')
-      .update({
-        archived_at: archived ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      })
       .eq('id', surveyPackageId);
 
     if (error) throw error;

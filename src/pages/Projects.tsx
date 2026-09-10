@@ -272,9 +272,7 @@ const Projects = () => {
           ? (project.status === 'active'
               ? `"${project.name}" is hidden from the default list, and field access is now revoked.`
               : `"${project.name}" is hidden from the default list.`)
-          : (project.status === 'active'
-              ? `"${project.name}" is back in the default list, and field access is restored.`
-              : `"${project.name}" is back in the default list.`),
+          : `"${project.name}" is back in the default list, and set to Active -- field access is restored.`,
       });
       fetchProjects();
     } catch (error) {

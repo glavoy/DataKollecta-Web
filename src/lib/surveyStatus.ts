@@ -4,11 +4,6 @@
  * trigger's `allowed` transition array in
  * supabase/migrations/<ts+1>_survey_lifecycle_guards.sql. If the two drift,
  * the UI will offer a transition the database then rejects.
- *
- * Archiving is a SEPARATE axis (`survey_packages.archived_at`), not a status.
- * A survey can be archived at any status; it changes nothing except whether
- * it shows in the default surveys list. See DESIGN.md / the survey lifecycle
- * plan for why the two are kept independent.
  */
 export type SurveyStatus = 'draft' | 'test' | 'deployed' | 'complete';
 
@@ -64,7 +59,7 @@ export const STATUS_DESCRIPTION: Record<SurveyStatus, string> = {
 /**
  * Badge classes, following the convention set by the existing badges in
  * QuestionCard.tsx (bg-{color}-500/80 hover:bg-{color}-500 for status
- * badges). Archived is not a status -- see ARCHIVED_BADGE_CLASS below.
+ * badges).
  */
 export const STATUS_BADGE_CLASS: Record<SurveyStatus, string> = {
   draft: 'bg-slate-500/80 hover:bg-slate-500',
@@ -72,6 +67,3 @@ export const STATUS_BADGE_CLASS: Record<SurveyStatus, string> = {
   deployed: 'bg-green-500/80 hover:bg-green-500',
   complete: 'bg-blue-500/80 hover:bg-blue-500',
 };
-
-/** Archiving is its own axis; give it its own muted badge alongside the status badge. */
-export const ARCHIVED_BADGE_CLASS = 'text-xs flex-shrink-0';

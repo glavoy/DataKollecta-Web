@@ -143,13 +143,10 @@ Deno.serve(async (req) => {
         };
 
         // 2. Get available surveys.
-        // Filtered in code rather than in the query: a `survey_status` enum
-        // rename (e.g. 'active' -> 'deployed') would make `.eq("status", ...)`
-        // raise "invalid input value for enum", and since a failure here is not
-        // fatal, `surveys` would silently become null -- every phone would see
-        // zero downloadable surveys. "active" is the pre-rename spelling of
-        // "deployed", kept so this can ship ahead of (and survive) that
-        // migration.
+        // Filtered in code rather than in the query: a failure here is not
+        // fatal, so an `.eq("status", ...)` that raised would otherwise
+        // silently leave `surveys` null -- every phone would see zero
+        // downloadable surveys with no trace anywhere.
         const { data: surveys, error: surveysError } = await supabase
             .from("survey_packages")
             .select("id, name, display_name, version_date, zip_file_path, manifest, updated_at, status")
@@ -168,11 +165,7 @@ Deno.serve(async (req) => {
             );
         }
 
-        const DOWNLOADABLE_STATUSES = new Set(["deployed", "active", "test"]);
-        // archived_at is deliberately NOT consulted here -- archiving only
-        // hides a survey from the portal's default list. It does not stop
-        // downloads; "complete" is what stops downloads. Keeping the two
-        // independent is what makes each one predictable.
+        const DOWNLOADABLE_STATUSES = new Set(["deployed", "test"]);
         const downloadableSurveys = (surveys || []).filter((s) => DOWNLOADABLE_STATUSES.has(s.status));
 
         // 3. Generate signed URLs for survey downloads (valid 24 hours)

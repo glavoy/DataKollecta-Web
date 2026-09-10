@@ -16,13 +16,20 @@
  * What tells them apart is list visibility and how each is normally used.
  * `archived_at` (`projects.archived_at`) hides a project from the default
  * projects list -- pausing does not. Archiving is the "I'm done with this"
- * action and doesn't touch `status`: archiving a Paused project and later
- * unarchiving it leaves it Paused, exactly as it was left. Pausing is for
- * "I need field access off right now while I keep working on this" --
- * unlike surveys, where archived_at NEVER gates access (see
- * src/lib/surveyStatus.ts); projects deliberately work differently because,
- * for a whole project, disappearing from your list while still silently
- * collecting field data is worse than for a single archived survey.
+ * action and leaves `status` untouched going in (archiving a Paused project
+ * keeps it recorded as Paused underneath). Unarchiving, though, always
+ * forces `status` back to 'active' (see projectService.setProjectArchived)
+ * -- there's no real scenario where you'd deliberately restore a project to
+ * your active list but want it to stay inaccessible to field devices. This
+ * makes Active / Paused / Archived a single mutually-exclusive 3-state
+ * ladder from the UI's point of view: Active <-> Paused, either -> Archived,
+ * Archived -> Active only (the status switch is disabled while archived --
+ * see ProjectSettings.tsx). Pausing is for "I need field access off right
+ * now while I keep working on this" -- unlike surveys, where archived_at
+ * NEVER gates access (see src/lib/surveyStatus.ts); projects deliberately
+ * work differently because, for a whole project, disappearing from your
+ * list while still silently collecting field data is worse than for a
+ * single survey.
  */
 export type ProjectStatus = 'active' | 'paused';
 

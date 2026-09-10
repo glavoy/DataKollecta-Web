@@ -1,0 +1,13 @@
+-- Remove survey-level archiving. It never gated anything (not downloads, not
+-- data, not RLS, not duplication -- see 20260823063324_survey_status_lifecycle.sql)
+-- and, because every version of a survey shares one databaseName
+-- (20260903060954_survey_versions.sql), one version could be archived while a
+-- sibling version wasn't, showing the same dataset as two rows with
+-- inconsistent badges. The `status` axis (draft/test/deployed/complete)
+-- already covers "no longer field-relevant" via `complete`, so this is a
+-- redundant, weaker copy of that concept rather than a distinct one.
+--
+-- Nothing else references this column: enforce_survey_package_lifecycle
+-- already excludes it from its locked-content diff (so no trigger change is
+-- needed), and no RLS policy or view consults it.
+ALTER TABLE public.survey_packages DROP COLUMN archived_at;

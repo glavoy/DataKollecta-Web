@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,8 +21,6 @@ import {
   Loader2,
   AlertTriangle,
   ShieldCheck,
-  Archive,
-  ArchiveRestore,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
@@ -31,7 +28,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { fetchAllRows } from "@/lib/supabasePaging";
 import { projectService } from "@/services/projectService";
-import { ProjectStatus, STATUS_LABEL, STATUS_DESCRIPTION, STATUS_BADGE_CLASS } from "@/lib/projectStatus";
+import {
+  ProjectStatus,
+  STATUS_LABEL,
+  STATUS_DESCRIPTION,
+  STATUS_BADGE_CLASS,
+  ARCHIVED_BADGE_CLASS,
+} from "@/lib/projectStatus";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 
 interface ProjectSettingsProps {
@@ -67,13 +70,21 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
   // below -- pausing now has real enforcement teeth (see applyStatusChange)
   // and bundling it into a generic multi-field save would make it too easy
   // to pause a project as a side effect of an unrelated text edit.
+  //
+  // `status` and `archivedAt` are local optimistic mirrors of the two DB
+  // columns, updated immediately on success rather than waiting for
+  // `onProjectUpdate`'s refetch to come back through props. Together they
+  // form one displayed 3-state ladder -- Active / Paused / Archived -- see
+  // `displayState` below and the doc comment on projectStatus.ts.
   const [status, setStatus] = useState<ProjectStatus>(project.status);
+  const [archivedAt, setArchivedAt] = useState<string | null>(project.archived_at);
   const [statusSaving, setStatusSaving] = useState(false);
   const [pauseWarningOpen, setPauseWarningOpen] = useState(false);
   const [archiveWarningOpen, setArchiveWarningOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
   const isOwner = userRole === 'owner';
+  const displayState: ProjectStatus | 'archived' = archivedAt ? 'archived' : status;
 
   const applyStatusChange = async (next: ProjectStatus) => {
     setStatusSaving(true);
@@ -98,30 +109,21 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
     }
   };
 
-  const handleStatusToggle = (checked: boolean) => {
-    const next: ProjectStatus = checked ? 'active' : 'paused';
-    // Already-archived projects have no field access to lose -- pausing
-    // one is a no-op on the ground, so skip the confirmation.
-    if (next === 'paused' && hasDeployedSurveys && !project.archived_at) {
-      setPauseWarningOpen(true);
-      return;
-    }
-    applyStatusChange(next);
-  };
-
   const applyArchiveChange = async (archived: boolean) => {
     setArchiving(true);
     try {
       await projectService.setProjectArchived(project.id, archived);
+      // Unarchiving always reactivates (see projectService.setProjectArchived),
+      // so the local mirror follows suit rather than waiting on a refetch.
+      setArchivedAt(archived ? new Date().toISOString() : null);
+      if (!archived) setStatus('active');
       toast({
         title: archived ? "Project archived" : "Project unarchived",
         description: archived
           ? (status === 'active'
-              ? "Hidden from your default project list, and field access is now revoked."
-              : "Hidden from your default project list.")
-          : (status === 'active'
-              ? "Back in your default project list, and field access is restored."
-              : "Back in your default project list."),
+              ? "Hidden from your project list, and field access is now revoked."
+              : "Hidden from your project list.")
+          : "Back in your project list, and set to Active -- field access is restored.",
       });
       onProjectUpdate();
     } catch (error) {
@@ -135,16 +137,34 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
     }
   };
 
-  const handleArchiveClick = () => {
-    const willArchive = !project.archived_at;
-    // Only archiving (not unarchiving) can remove access, and only when the
-    // project is currently Active with something field workers could
-    // actually be collecting against.
-    if (willArchive && status === 'active' && hasDeployedSurveys) {
-      setArchiveWarningOpen(true);
+  // The single entry point for the 3-way Active/Paused/Archived control.
+  // Archived is reachable from either Active or Paused; the only way out of
+  // Archived is back to Active (Paused is disabled as a trigger while
+  // archived, but this guard covers it regardless of how it's invoked).
+  const handleSelectState = (next: ProjectStatus | 'archived') => {
+    if (next === displayState) return;
+
+    if (next === 'archived') {
+      // Only archiving FROM Active can remove access field workers are
+      // relying on right now; archiving from Paused has nothing left to lose.
+      if (status === 'active' && hasDeployedSurveys) {
+        setArchiveWarningOpen(true);
+        return;
+      }
+      applyArchiveChange(true);
       return;
     }
-    applyArchiveChange(willArchive);
+
+    if (displayState === 'archived') {
+      if (next === 'active') applyArchiveChange(false);
+      return;
+    }
+
+    if (next === 'paused' && hasDeployedSurveys) {
+      setPauseWarningOpen(true);
+      return;
+    }
+    applyStatusChange(next);
   };
 
   const handleSave = async () => {
@@ -369,9 +389,13 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
       </Card>
 
       {/* Access & Visibility -- immediate-apply, deliberately separate from
-          the General card's staged Save Changes: pausing has real
+          the General card's staged Save Changes: changing this has real
           enforcement effects and shouldn't ride along with an unrelated
-          text edit. */}
+          text edit. One 3-way control rather than a switch plus a separate
+          archive button: Active / Paused / Archived is a single ladder
+          (Active <-> Paused, either -> Archived, Archived -> Active only),
+          so showing it as two independent toggles implied combinations that
+          don't actually exist. */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -381,55 +405,39 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
           <CardDescription>Field-device access and where this project shows up in your list</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Project Status</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <Badge className={STATUS_BADGE_CLASS[status]}>{STATUS_LABEL[status]}</Badge>
-                  {statusSaving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                </div>
-              </div>
-              <Switch
-                checked={status === 'active'}
-                onCheckedChange={handleStatusToggle}
-                disabled={!isOwner || statusSaving}
-              />
-            </div>
-            <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">What does this mean?</p>
-              <p>{STATUS_DESCRIPTION[status]}</p>
-              {project.archived_at && status === 'active' && (
-                <p className="mt-1 text-foreground">
-                  This project is currently archived, so field access is blocked regardless --
-                  unarchive below to actually restore it.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
           <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">{project.archived_at ? 'Archived' : 'Archive project'}</p>
-              <p className="text-sm text-muted-foreground">
-                {project.archived_at
-                  ? 'Hidden from your default project list, and field access stays revoked until you unarchive.'
-                  : 'Hides this project from your default list and revokes field access (same as pausing) -- unarchive anytime to restore exactly as it was.'}
-              </p>
+            <div className="flex items-center gap-2">
+              <Badge className={displayState === 'archived' ? ARCHIVED_BADGE_CLASS : STATUS_BADGE_CLASS[displayState]}>
+                {displayState === 'archived' ? 'Archived' : STATUS_LABEL[displayState]}
+              </Badge>
+              {(statusSaving || archiving) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
             </div>
-            {isOwner && (
-              <Button variant="outline" onClick={handleArchiveClick} disabled={archiving}>
-                {archiving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : project.archived_at ? (
-                  <ArchiveRestore className="h-4 w-4 mr-2" />
-                ) : (
-                  <Archive className="h-4 w-4 mr-2" />
-                )}
-                {project.archived_at ? 'Unarchive' : 'Archive'}
-              </Button>
+            <Tabs value={displayState} onValueChange={(v) => handleSelectState(v as ProjectStatus | 'archived')}>
+              <TabsList>
+                <TabsTrigger value="active" disabled={!isOwner || statusSaving || archiving}>
+                  Active
+                </TabsTrigger>
+                <TabsTrigger
+                  value="paused"
+                  disabled={!isOwner || statusSaving || archiving || displayState === 'archived'}
+                >
+                  Paused
+                </TabsTrigger>
+                <TabsTrigger value="archived" disabled={!isOwner || statusSaving || archiving}>
+                  Archived
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">What does this mean?</p>
+            {displayState === 'archived' ? (
+              <p>
+                Hidden from your project list, and field access is fully revoked. Select Active
+                above to unarchive and restore access immediately.
+              </p>
+            ) : (
+              <p>{STATUS_DESCRIPTION[displayState]}</p>
             )}
           </div>
         </CardContent>

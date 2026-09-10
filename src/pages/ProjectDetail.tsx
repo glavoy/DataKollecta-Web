@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Plus,
@@ -38,8 +38,6 @@ import {
   Download,
   Trash2,
   Copy,
-  Archive,
-  ArchiveRestore,
   MoreVertical,
   LayoutDashboard,
   FileSpreadsheet,
@@ -68,7 +66,6 @@ import {
   LEGAL_TRANSITIONS,
   STATUS_LABEL,
   STATUS_BADGE_CLASS,
-  ARCHIVED_BADGE_CLASS,
   isSurveyDeletable,
 } from "@/lib/surveyStatus";
 import { findSurveyIdConflict, surveyIdConflictMessage, translateSurveyWriteError } from "@/lib/errors/surveyErrors";
@@ -105,7 +102,6 @@ interface SurveyPackage {
   description: string;
   zip_file_path: string;
   created_at: string;
-  archived_at: string | null;
   copied_from: string | null;
   survey_code: string;
   version: number;
@@ -167,7 +163,7 @@ const ProjectDetail = () => {
 
   // Surveys tab: which surveys are visible, plus the two dialogs launched
   // from a survey's row menu.
-  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [surveyToDuplicate, setSurveyToDuplicate] = useState<SurveyPackage | null>(null);
   const [surveyForTransition, setSurveyForTransition] = useState<{ survey: SurveyPackage; next: SurveyStatus } | null>(null);
   // Older versions are collapsed under their latest by default -- a long-running
@@ -187,10 +183,6 @@ const ProjectDetail = () => {
     surveyId: string;
     lineage: NonNullable<Awaited<ReturnType<typeof surveyService.findLineageByDatabaseName>>>;
   } | null>(null);
-  // Archiving a survey that's still deployed doesn't stop phones downloading
-  // it -- that's what "Complete" is for. Confirm before archiving one of
-  // those, since it's easy to assume archiving hides it from devices too.
-  const [archiveWarningSurvey, setArchiveWarningSurvey] = useState<SurveyPackage | null>(null);
 
   // useCallback, and declared above the effect that depends on it: a `const`
   // is not hoisted, so naming it in an earlier dependency array would be a TDZ
@@ -427,34 +419,6 @@ const ProjectDetail = () => {
     }
   };
 
-  const handleArchiveClick = (survey: SurveyPackage) => {
-    if (!survey.archived_at && survey.status === 'deployed') {
-      setArchiveWarningSurvey(survey);
-      return;
-    }
-    handleToggleArchived(survey);
-  };
-
-  const handleToggleArchived = async (survey: SurveyPackage) => {
-    try {
-      await surveyService.setSurveyArchived(survey.id, !survey.archived_at);
-      toast({
-        title: survey.archived_at ? "Survey unarchived" : "Survey archived",
-        description: survey.archived_at
-          ? `"${survey.display_name}" is back in the default list.`
-          : `"${survey.display_name}" is hidden from the default list. Data, downloads, and Duplicate are unaffected.`,
-      });
-      fetchProjectData();
-    } catch (error) {
-      console.error("Archive toggle error:", error);
-      toast({
-        title: "Could not update",
-        description: getErrorMessage(error, "An unexpected error occurred."),
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleDeleteSurvey = async (surveyId: string) => {
     try {
       const surveyToDelete = surveys.find(s => s.id === surveyId);
@@ -470,7 +434,7 @@ const ProjectDetail = () => {
         toast({
           title: "Cannot delete",
           description: `"${surveyToDelete.display_name}" is ${surveyToDelete.status} and cannot ` +
-            `be deleted. Archive it instead if you want it out of the way.`,
+            `be deleted.`,
           variant: "destructive",
         });
         return;
@@ -887,19 +851,17 @@ const ProjectDetail = () => {
             ) : (
               <>
                 {(() => {
-                  const archivedCount = surveys.filter(s => s.archived_at).length;
+                  const completedCount = surveys.filter(s => s.status === 'complete').length;
                   return (
-                    <div className="flex items-center justify-end mb-3">
-                      <Select value={archiveFilter} onValueChange={(v) => setArchiveFilter(v as typeof archiveFilter)}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="archived">Archived ({archivedCount})</SelectItem>
-                          <SelectItem value="all">All</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2 justify-end mb-3">
+                      <Label htmlFor="show-completed" className="text-sm text-muted-foreground">
+                        Show completed{completedCount > 0 ? ` (${completedCount})` : ''}
+                      </Label>
+                      <Switch
+                        id="show-completed"
+                        checked={showCompleted}
+                        onCheckedChange={setShowCompleted}
+                      />
                     </div>
                   );
                 })()}
@@ -915,11 +877,7 @@ const ProjectDetail = () => {
                   </TableHeader>
                   <TableBody>
                     {groupByLineage(
-                      surveys.filter((survey) => {
-                        if (archiveFilter === 'all') return true;
-                        if (archiveFilter === 'archived') return !!survey.archived_at;
-                        return !survey.archived_at;
-                      })
+                      surveys.filter((survey) => showCompleted || survey.status !== 'complete')
                     ).flatMap((lineage) => {
                       const hasHistory = lineage.versions.length > 1;
                       const expanded = expandedLineages.has(lineage.surveyCode);
@@ -985,11 +943,6 @@ const ProjectDetail = () => {
                             <Badge className={STATUS_BADGE_CLASS[survey.status]}>
                               {STATUS_LABEL[survey.status]}
                             </Badge>
-                            {survey.archived_at && (
-                              <Badge variant="outline" className={ARCHIVED_BADGE_CLASS}>
-                                Archived
-                              </Badge>
-                            )}
                             {survey.status === 'deployed' && deployedCount > 1 && (
                               <Badge
                                 variant="outline"
@@ -1050,20 +1003,6 @@ const ProjectDetail = () => {
                                       Move to {STATUS_LABEL[next]}
                                     </DropdownMenuItem>
                                   ))}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => handleArchiveClick(survey)}>
-                                    {survey.archived_at ? (
-                                      <>
-                                        <ArchiveRestore className="h-4 w-4 mr-2" />
-                                        Unarchive
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Archive className="h-4 w-4 mr-2" />
-                                        Archive
-                                      </>
-                                    )}
-                                  </DropdownMenuItem>
                                   {isSurveyDeletable(survey.status) && (
                                     <>
                                       <DropdownMenuSeparator />
@@ -1290,31 +1229,6 @@ const ProjectDetail = () => {
                 onClick={() => surveyForTransition && handleTransitionStatus(surveyForTransition.survey, surveyForTransition.next)}
               >
                 Confirm
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Archive-while-deployed warning */}
-        <AlertDialog open={!!archiveWarningSurvey} onOpenChange={(open) => !open && setArchiveWarningSurvey(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Archive a deployed survey?</AlertDialogTitle>
-              <AlertDialogDescription>
-                "{archiveWarningSurvey?.display_name}" is still deployed. Archiving only hides it
-                from this list -- phones will keep downloading it. If you want to stop collection,
-                move it to Complete instead (from the row menu).
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (archiveWarningSurvey) handleToggleArchived(archiveWarningSurvey);
-                  setArchiveWarningSurvey(null);
-                }}
-              >
-                Archive anyway
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
