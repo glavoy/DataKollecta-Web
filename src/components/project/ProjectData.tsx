@@ -37,6 +37,7 @@ import {
   buildFormChangesCsv,
   buildSubmissionsCsv,
   declaredColumns,
+  orderRecordEntries,
   type ExportField,
   type ExportFormChange,
   type ExportSubmission,
@@ -148,19 +149,37 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
             };
           }
 
+          // The newest definition of each table_name -- that is what the data
+          // browser should show.
           const byTable = new Map<string, typeof forms[number]>();
-          // Every question a table_name declares in ANY version, accumulated
-          // alongside the newest definition. The newest one is what the data
-          // browser should show, but an export needs the union: a form holding
-          // no rows gets its header from here, and it has to match the union
-          // of columns a populated CSV would carry.
-          const fieldsByTable = new Map<string, Map<string, FormField>>();
           for (const form of forms) {
             const existing = byTable.get(form.table_name);
             const existingVersion = existing ? versionByPackage[existing.survey_package_id] ?? 0 : -1;
             const thisVersion = versionByPackage[form.survey_package_id] ?? 0;
             if (thisVersion > existingVersion) byTable.set(form.table_name, form);
+          }
 
+          // Every question a table_name declares in ANY version. An export needs
+          // the union rather than the newest definition: a form holding no rows
+          // gets its header from here, and it has to match the union of columns
+          // a populated CSV would carry.
+          //
+          // Built in its own pass, newest version first, because it is ORDERED
+          // and that order becomes the CSV's column order. A Map keeps
+          // first-seen position, so this reads as the newest version's XML
+          // order followed by whatever only older versions declared. The query
+          // above orders by display_order, a form-level key that says nothing
+          // about which version a row came from, so without this sort the
+          // column order would depend on however Postgres happened to return
+          // the rows. The pass above stays on the original order, so the list
+          // of forms on screen keeps its display_order.
+          const fieldsByTable = new Map<string, Map<string, FormField>>();
+          const formsNewestFirst = [...forms].sort(
+            (a, b) =>
+              (versionByPackage[b.survey_package_id] ?? 0) -
+              (versionByPackage[a.survey_package_id] ?? 0),
+          );
+          for (const form of formsNewestFirst) {
             let union = fieldsByTable.get(form.table_name);
             if (!union) {
               union = new Map<string, FormField>();
@@ -226,13 +245,28 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     enabled: !!selectedForm,
   });
 
-  // Get display columns from form fields
+  /**
+   * Every column this form declares, in package-XML order -- the same list the
+   * export builds its header from, so what is read on screen and what is read
+   * in the CSV are in one order.
+   */
+  const orderedColumnNames = useMemo(
+    () =>
+      selectedForm
+        ? declaredColumns(selectedForm.allFields, { hasParent: !!selectedForm.parent_table })
+        : [],
+    [selectedForm],
+  );
+
+  // The first few questions, as a preview in the table. Drawn from allFields
+  // rather than fields so a question that only an older version asked is still
+  // reachable, and left in array order because that is already XML order.
   const displayColumns = useMemo(() => {
-    if (!selectedForm?.fields || !Array.isArray(selectedForm.fields)) {
+    if (!selectedForm?.allFields || !Array.isArray(selectedForm.allFields)) {
       return [];
     }
 
-    const visibleFields = selectedForm.fields.filter((field) => {
+    const visibleFields = selectedForm.allFields.filter((field) => {
       const type = field.type?.toLowerCase();
       if (type === 'information') return false;
       return true;
@@ -259,7 +293,11 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
   const handleExportSingleForm = () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0 || !selectedForm) return;
 
-    const csvContent = buildSubmissionsCsv(filteredSubmissions, selectedForm.versionByPackage);
+    const csvContent = buildSubmissionsCsv(
+      filteredSubmissions,
+      selectedForm.versionByPackage,
+      orderedColumnNames,
+    );
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -651,7 +689,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedRecord.data && Object.entries(selectedRecord.data)
+                    {selectedRecord.data && orderRecordEntries(selectedRecord.data, orderedColumnNames)
                       .filter(([key]) => !key.startsWith('_'))
                       .map(([key, value]) => (
                         <TableRow key={key}>
