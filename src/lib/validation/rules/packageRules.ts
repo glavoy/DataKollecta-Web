@@ -1,6 +1,6 @@
 /**
  * Cross-form concerns: unique table names, the parent/child relationship
- * between forms, exactly one base form, and basic package identity.
+ * between forms, at least one base form, and basic package identity.
  *
  * No SurveyGen equivalent at all -- it validates one worksheet at a time and
  * never sees the relationships between them. The designer has real
@@ -144,20 +144,15 @@ function baseFormCountFindings(pkg: SurveyPackage): Finding[] {
   if (pkg.forms.length === 0) return [];
 
   const baseForms = pkg.forms.filter(isBaseForm);
-  if (baseForms.length === 1) return [];
-
-  const message =
-    baseForms.length === 0
-      ? 'This survey has no base form (a form with no parent table).'
-      : `This survey has ${baseForms.length} base forms (forms with no parent table): ${baseForms.map((f) => f.tablename).join(', ')}.`;
+  if (baseForms.length > 0) return [];
 
   return [
     {
       scope: 'package',
       ruleId: RULE.baseFormCount,
       severity: 'error',
-      message,
-      hint: 'Exactly one form must be the base -- the top-level record every other form links to.',
+      message: 'This survey has no base form (a form with no parent table).',
+      hint: 'At least one form must be a base form -- a top-level record with no parent that the app can start from.',
     },
   ];
 }

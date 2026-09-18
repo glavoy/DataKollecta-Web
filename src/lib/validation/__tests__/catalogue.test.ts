@@ -270,10 +270,10 @@ describe('cross-form and package rules', () => {
     record(
       pkgOf(
         [
-          formOf('123bad', []),
-          formOf('dup1', [], { id: 'd1' }),
-          formOf('Dup1', [], { id: 'd2' }),
-          formOf('orphan', [], { parenttable: 'nonexistent' }),
+          formOf('123bad', [], { parenttable: 'orphan' }),
+          formOf('dup1', [], { id: 'd1', parenttable: 'orphan' }),
+          formOf('Dup1', [], { id: 'd2', parenttable: 'orphan' }),
+          formOf('orphan', [], { parenttable: 'nonexistent' }), // every form has a parent -> no base form
           formOf('selfparent', [], { parenttable: 'selfparent' }),
         ],
         { surveyId: '', databaseName: 'survey.db' },

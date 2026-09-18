@@ -101,9 +101,16 @@ describe('base form count', () => {
     expect(findings).toContainEqual(expect.objectContaining({ ruleId: RULE.baseFormCount }));
   });
 
-  it('errors when more than one form has no parent', () => {
+  it('accepts multiple independent base forms', () => {
     const findings = packageFindings(pkgOf([formOf('household'), formOf('other')]));
-    expect(findings).toContainEqual(expect.objectContaining({ ruleId: RULE.baseFormCount }));
+    expect(findings.filter((f) => f.ruleId === RULE.baseFormCount)).toEqual([]);
+  });
+
+  it('accepts several unrelated base forms with no parent/child relations at all', () => {
+    const findings = packageFindings(
+      pkgOf([formOf('edu_caregiver'), formOf('edu_student'), formOf('edu_classroom')]),
+    );
+    expect(findings.filter((f) => f.ruleId === RULE.baseFormCount)).toEqual([]);
   });
 
   it('is silent for an empty package (nothing to be wrong yet)', () => {
