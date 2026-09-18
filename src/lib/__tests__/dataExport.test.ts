@@ -4,10 +4,13 @@ import {
   buildSubmissionsCsv,
   declaredColumns,
   EXPORT_META_COLUMNS,
+  orderRecordEntries,
   submissionColumns,
   type ExportField,
   type ExportSubmission,
 } from '../dataExport';
+import { withSystemFields } from '../xml/systemFields';
+import type { SurveyQuestion } from '@/types/survey';
 
 /** The header row of a built CSV, BOM stripped and split. */
 function headerOf(csv: string): string[] {
@@ -37,16 +40,52 @@ const HH_INFO_FIELDS: ExportField[] = [
 ];
 
 describe('submissionColumns', () => {
-  it('takes the union across submissions, sorted', () => {
+  it('takes the union across submissions', () => {
     // A v1 row and a v2 row that added a question: both columns appear, and
     // the v1 row is simply blank in the new one -- the same shape the phone's
     // own SQLite reaches after ALTER TABLE.
     expect(
-      submissionColumns([
-        submission({ hhid: '438020004', enrolled: '1' }),
-        submission({ hhid: '438020005', enrolled: '1', nstructures: '2' }),
+      submissionColumns(
+        [
+          submission({ hhid: '438020004', enrolled: '1' }),
+          submission({ hhid: '438020005', enrolled: '1', nstructures: '2' }),
+        ],
+        ['hhid', 'enrolled', 'nstructures'],
+      ),
+    ).toEqual(['hhid', 'enrolled', 'nstructures']);
+  });
+
+  it('follows the declared order rather than the alphabet', () => {
+    // `submissions.data` is jsonb, so the row itself carries no usable key
+    // order -- the form definition is the only source of one.
+    expect(
+      submissionColumns([submission({ age: '4', nets: '2', hhid: '1' })], [
+        'hhid',
+        'nets',
+        'age',
       ]),
-    ).toEqual(['enrolled', 'hhid', 'nstructures']);
+    ).toEqual(['hhid', 'nets', 'age']);
+  });
+
+  it('appends a column no version declares, sorted, at the end', () => {
+    // A question since renamed or removed still holds data. Dropping it from
+    // the export would lose that data silently.
+    expect(
+      submissionColumns([submission({ hhid: '1', zzz: 'x', aaa: 'y' })], ['hhid']),
+    ).toEqual(['hhid', 'aaa', 'zzz']);
+  });
+
+  it('omits a declared question that no row ever answered', () => {
+    expect(submissionColumns([submission({ hhid: '1' })], ['hhid', 'enrolled'])).toEqual([
+      'hhid',
+    ]);
+  });
+
+  it('falls back to sorted order when nothing is declared', () => {
+    expect(submissionColumns([submission({ hhid: '1', enrolled: '1' })])).toEqual([
+      'enrolled',
+      'hhid',
+    ]);
   });
 
   it('excludes synced_at, which is always empty on the server', () => {
@@ -62,20 +101,57 @@ describe('submissionColumns', () => {
 });
 
 describe('declaredColumns', () => {
-  it('adds back the reserved system fields stripped on import', () => {
+  it('adds back the reserved system fields stripped on import, in XML order', () => {
     // surveyPackageUpload strips these because they are re-injected at
-    // generation time, so a form's stored `fields` never carries them.
+    // generation time, so a form's stored `fields` never carries them. They
+    // bracket the authored questions exactly as the generator writes them.
     expect(declaredColumns(HH_INFO_FIELDS)).toEqual([
-      'enrolled',
-      'hhid',
-      'lastmod',
-      'startdate',
       'starttime',
-      'stoptime',
-      'survey_id',
-      'swver',
+      'startdate',
+      'hhid',
+      'enrolled',
       'uniqueid',
+      'swver',
+      'survey_id',
+      'lastmod',
+      'stoptime',
     ]);
+  });
+
+  it('keeps the authored questions in declaration order, not alphabetical', () => {
+    // The whole point: `crfs.fields` is a jsonb ARRAY in document order, and
+    // sorting it was what made an exported CSV unreadable against the form.
+    expect(
+      declaredColumns([
+        { fieldname: 'zone', type: 'radio' },
+        { fieldname: 'age', type: 'integer' },
+        { fieldname: 'name', type: 'text' },
+      ]).slice(2, 5),
+    ).toEqual(['zone', 'age', 'name']);
+  });
+
+  it('matches the order the generator writes into the XML', () => {
+    // The assertion that ties the export to the generator. `withSystemFields`
+    // is what produces the document; if either side's system-field list moves,
+    // this fails rather than the CSV quietly disagreeing with the form.
+    const questions = HH_INFO_FIELDS.map((f) => ({
+      id: f.fieldname,
+      type: f.type,
+      fieldname: f.fieldname,
+      fieldtype: 'text',
+      text: '',
+    })) as SurveyQuestion[];
+
+    const fromGenerator = withSystemFields(questions, undefined, { hasParent: true })
+      .filter((q) => q.type !== 'information')
+      .map((q) => q.fieldname);
+
+    expect(declaredColumns(HH_INFO_FIELDS, { hasParent: true })).toEqual(fromGenerator);
+  });
+
+  it('puts parent_uniqueid after the trailing system fields', () => {
+    const cols = declaredColumns(HH_INFO_FIELDS, { hasParent: true });
+    expect(cols[cols.length - 1]).toBe('parent_uniqueid');
   });
 
   it('drops information questions, which declare no column', () => {
@@ -160,15 +236,52 @@ describe('buildSubmissionsCsv', () => {
     expect(headerOf(buildSubmissionsCsv([], {}, declared))).toEqual(headerOf(populated));
   });
 
-  it('ignores the declared columns once there are rows to describe', () => {
-    // Real rows are the better authority: a column a row actually carries has
-    // to appear even if no version declared it.
+  it('takes membership from the rows and order from the declared columns', () => {
+    // Real rows are the better authority on WHICH columns exist -- `enrolled`
+    // is declared but unanswered, so it stays out -- while the declared list
+    // decides what order the ones that do exist appear in.
     const csv = buildSubmissionsCsv(
-      [submission({ hhid: '438020004' })],
+      [submission({ age: '4', hhid: '438020004' })],
       { 'pkg-1': 3 },
-      ['enrolled', 'hhid'],
+      ['hhid', 'enrolled', 'age'],
     );
-    expect(headerOf(csv)).toEqual([...EXPORT_META_COLUMNS, 'hhid']);
+    expect(headerOf(csv)).toEqual([...EXPORT_META_COLUMNS, 'hhid', 'age']);
+  });
+
+  it('writes each row\'s cells under the header they belong to', () => {
+    // The ordering change touches the header and the cells together; this is
+    // what catches them drifting apart.
+    const csv = buildSubmissionsCsv(
+      [submission({ age: '4', hhid: '438020004' })],
+      { 'pkg-1': 3 },
+      ['hhid', 'age'],
+    );
+    const [header, row] = csv.replace(/^\uFEFF/, '').split('\n');
+    expect(header.split(',').slice(-2)).toEqual(['hhid', 'age']);
+    expect(row.split(',').slice(-2)).toEqual(['438020004', '4']);
+  });
+});
+
+describe('orderRecordEntries', () => {
+  it('reads a record in question order rather than jsonb key order', () => {
+    expect(
+      orderRecordEntries({ age: 4, hhid: '1', starttime: 't' }, [
+        'starttime',
+        'hhid',
+        'age',
+      ]).map(([k]) => k),
+    ).toEqual(['starttime', 'hhid', 'age']);
+  });
+
+  it('drops synced_at, which is NULL on the server by construction', () => {
+    expect(orderRecordEntries({ hhid: '1', synced_at: null }, ['hhid'])).toEqual([['hhid', '1']]);
+  });
+
+  it('keeps a value no version declares, at the end', () => {
+    expect(orderRecordEntries({ legacy: 'x', hhid: '1' }, ['hhid'])).toEqual([
+      ['hhid', '1'],
+      ['legacy', 'x'],
+    ]);
   });
 });
 

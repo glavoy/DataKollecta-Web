@@ -86,16 +86,77 @@ const DEVICE_ONLY_DATA_KEYS: ReadonlySet<string> = new Set(['synced_at']);
 const NON_COLUMN_QUESTION_TYPES: ReadonlySet<string> = new Set(['information']);
 
 /**
- * The data columns present in a set of submissions: the union across all of
- * them, sorted.
+ * `present` arranged into declared order, with whatever `declared` does not
+ * name appended and sorted.
  *
- * The union is the right shape rather than a compromise -- it is exactly what
- * the phone's own SQLite ends up with after `_syncSurveyTable` ALTER TABLEs a
- * new question in, so a v1 row is blank in a v2-only column in both places.
- * Sorted for a deterministic order rather than whichever submission happened
- * to introduce a key first.
+ * The tail is the point: a column a row carries but no version declares -- a
+ * question since renamed or removed -- still has to appear, or an export would
+ * silently lose it. Putting those together at the end makes them obvious
+ * rather than scattered through the questions.
  */
-export function submissionColumns(submissions: readonly ExportSubmission[]): string[] {
+function inDeclaredOrder(present: ReadonlySet<string>, declared: readonly string[]): string[] {
+  const known = declared.filter((name) => present.has(name));
+  const undeclared = [...present].filter((name) => !declared.includes(name)).sort();
+  return [...known, ...undeclared];
+}
+
+/**
+ * The data columns a form declares, in exactly the order the package XML puts
+ * the questions in.
+ *
+ * This is also what gives a form holding no rows a header. Such a form used to
+ * be left out of the export zip altogether, because columns were derived from
+ * the rows and there were none -- which made "no nets were collected"
+ * indistinguishable from a broken export.
+ *
+ * This mirrors `withSystemFields` in `xml/systemFields.ts`, which is what the
+ * generator uses to write the XML -- leading system variables, then the
+ * authored questions in the order they were written, then the trailing system
+ * variables, then the parent link. (The end-of-questions screen is the one
+ * thing that differs, and only because it declares no column.)
+ *
+ * `crfs.fields` is a jsonb ARRAY written in document order by `xml/form.ts`,
+ * so the authored segment needs no sorting -- it needs only to be left alone.
+ * The reserved system variables are stripped on import by
+ * `surveyPackageUpload`, which is why they are added back here rather than
+ * read out of the stored list, and why the four segments below cannot overlap.
+ */
+export function declaredColumns(
+  fields: readonly ExportField[] | null | undefined,
+  opts: { hasParent?: boolean } = {},
+): string[] {
+  const authored: string[] = [];
+  for (const field of fields ?? []) {
+    const name = field.fieldname?.trim();
+    if (!name) continue;
+    if (NON_COLUMN_QUESTION_TYPES.has(field.type?.toLowerCase() ?? '')) continue;
+    if (DEVICE_ONLY_DATA_KEYS.has(name)) continue;
+    authored.push(name);
+  }
+
+  return [
+    ...LEADING_SYSTEM_FIELDS.map((f) => f.fieldname),
+    ...authored,
+    ...TRAILING_SYSTEM_FIELDS.map((f) => f.fieldname),
+    ...(opts.hasParent ? [PARENT_LINK_FIELD.fieldname] : []),
+  ];
+}
+
+/**
+ * The data columns present in a set of submissions: the union across all of
+ * them, ordered by `declared`.
+ *
+ * The union is the right membership rather than a compromise -- it is exactly
+ * what the phone's own SQLite ends up with after `_syncSurveyTable` ALTER
+ * TABLEs a new question in, so a v1 row is blank in a v2-only column in both
+ * places. But the rows themselves carry no usable order: `submissions.data` is
+ * jsonb, and Postgres does not preserve the key order the device wrote. The
+ * order has to come from the form definition, which is what `declared` is.
+ */
+export function submissionColumns(
+  submissions: readonly ExportSubmission[],
+  declared: readonly string[] = [],
+): string[] {
   const names = new Set<string>();
   for (const sub of submissions) {
     if (!sub.data) continue;
@@ -103,53 +164,18 @@ export function submissionColumns(submissions: readonly ExportSubmission[]): str
       if (!DEVICE_ONLY_DATA_KEYS.has(key)) names.add(key);
     }
   }
-  return [...names].sort();
-}
 
-/**
- * The data columns a form *declares*, for a form that holds no rows.
- *
- * A form with no submissions used to be left out of the export zip altogether,
- * because columns were derived from the rows and there were none. That made
- * "no nets were collected" indistinguishable from a broken export: a manifest
- * declaring four forms would ship three CSVs with nothing to say why. The
- * columns have to come from the form definition instead.
- *
- * `crfs.fields` holds only what the author wrote -- `surveyPackageUpload`
- * strips the reserved system variables on import, since they are re-injected
- * at generation time -- so they are added back here from the single source of
- * truth for that list. `parent_uniqueid` follows from the form having a
- * parent, exactly as it does in the generator.
- */
-export function declaredColumns(
-  fields: readonly ExportField[] | null | undefined,
-  opts: { hasParent?: boolean } = {},
-): string[] {
-  const names = new Set<string>();
-
-  for (const field of fields ?? []) {
-    const name = field.fieldname?.trim();
-    if (!name) continue;
-    if (NON_COLUMN_QUESTION_TYPES.has(field.type?.toLowerCase() ?? '')) continue;
-    if (DEVICE_ONLY_DATA_KEYS.has(name)) continue;
-    names.add(name);
-  }
-
-  for (const sys of [...LEADING_SYSTEM_FIELDS, ...TRAILING_SYSTEM_FIELDS]) {
-    names.add(sys.fieldname);
-  }
-  if (opts.hasParent) names.add(PARENT_LINK_FIELD.fieldname);
-
-  return [...names].sort();
+  return inDeclaredOrder(names, declared);
 }
 
 /**
  * One CSV per form, covering every version of the survey.
  *
- * With rows, the columns are the union the rows actually carry. With none,
- * they are the ones the form declares -- so the file is a header-only CSV
- * rather than an absent file, and its shape matches what the same form looks
- * like once it has data.
+ * `declared` decides the ORDER in both branches; the rows decide the
+ * membership when there are any. A question a version declares but no row ever
+ * answered stays out of a populated CSV, and a column the rows carry but no
+ * version declares still appears -- at the end, where `submissionColumns` puts
+ * it.
  */
 export function buildSubmissionsCsv(
   submissions: readonly ExportSubmission[],
@@ -157,7 +183,7 @@ export function buildSubmissionsCsv(
   declared: readonly string[] = [],
 ): string {
   const fieldNames = submissions.length > 0
-    ? submissionColumns(submissions)
+    ? submissionColumns(submissions, declared)
     : [...declared];
 
   const headers = [...EXPORT_META_COLUMNS, ...fieldNames];
@@ -171,6 +197,29 @@ export function buildSubmissionsCsv(
   ]);
 
   return buildCsv(headers, rows);
+}
+
+/**
+ * One record's `data` as entries, in the same order the export puts its
+ * columns: the declared questions first, then anything the row carries that no
+ * version declares, sorted.
+ *
+ * Used by the record detail view. `submissions.data` is jsonb, so
+ * `Object.entries` alone returns whatever key order Postgres stored -- which is
+ * not the order the questions were asked in, and not stable between rows.
+ *
+ * Drops the same device-only keys the export does, for the same reason: they
+ * are NULL on the server by construction, so showing them adds a row that can
+ * only ever be empty.
+ */
+export function orderRecordEntries(
+  data: Record<string, unknown>,
+  declared: readonly string[],
+): [string, unknown][] {
+  const keys = new Set(
+    Object.keys(data).filter((key) => !DEVICE_ONLY_DATA_KEYS.has(key)),
+  );
+  return inDeclaredOrder(keys, declared).map((key) => [key, data[key]]);
 }
 
 export const FORMCHANGES_COLUMNS = [
