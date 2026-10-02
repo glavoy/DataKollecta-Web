@@ -59,10 +59,25 @@ export const teamService = {
   },
 
   /**
+   * Set a new password on an existing credential, server-side. Also signs out
+   * every device using it (deletes its app_sessions) and clears its failed-
+   * login throttle -- see the reset_app_credential_password migration. The
+   * RPC's policy messages are rethrown so the caller can show them verbatim.
+   */
+  async resetCredentialPassword(credentialId: string, password: string) {
+    const { data, error } = await supabase.rpc("reset_app_credential_password", {
+      p_credential_id: credentialId,
+      p_password: password,
+    });
+
+    if (error) throw error;
+    return data as { id: string; username: string; sessions_revoked: number };
+  },
+
+  /**
    * Update a credential's username and/or description. Never touches the
-   * password -- that's bcrypt-hashed server-side by create_app_credential
-   * and the plaintext never reaches the client, so resetting it needs its
-   * own RPC, not a plain update.
+   * password -- that's bcrypt-hashed server-side and the plaintext never
+   * reaches the client; see resetCredentialPassword.
    */
   async updateCredential(credentialId: string, updates: { username?: string; description?: string | null }) {
     const { error } = await supabase

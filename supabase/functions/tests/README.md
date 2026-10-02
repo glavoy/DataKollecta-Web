@@ -1,8 +1,9 @@
 # Edge Function tests
 
-35 HTTP-level tests covering `app-login` and `app-sync` — password
+HTTP-level tests covering `app-login` and `app-sync` — password
 verification, session validation, project-access revocation, and every mobile
-write. These are the highest-consequence code in the platform and, until this
+write — plus the portal's `reset_app_credential_password` RPC, tested by what a
+device sees after a reset. These are the highest-consequence code in the platform and, until this
 suite existed, the only part with no tests at all: `npx vitest run` covers 391
 cases and every one of them is a pure function in `src/lib/`.
 

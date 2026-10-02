@@ -67,7 +67,9 @@ the project's Field Team screen, entirely separate from `profiles`/web accounts.
   `DataKollecta-SurveyGen` tool (or edited directly in this site's survey designer),
   then uploaded here as a versioned `survey_packages` row plus one `crfs` row per
   form.
-- **Field team management** — create/revoke `app_credentials` per project.
+- **Field team management** — create/revoke `app_credentials` per project, and reset a
+  password in place (`reset_app_credential_password`, which also signs out that
+  credential's devices). A credential covers every survey in its project.
 - **Data aggregation** — the mobile app posts submissions and form-edit audit
   entries to the `app-sync` edge function, upserted by `local_unique_id` so a
   re-sent or duplicate upload doesn't create a second row.

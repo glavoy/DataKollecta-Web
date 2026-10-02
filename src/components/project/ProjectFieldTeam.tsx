@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { isUniqueViolation } from "@/lib/errors/postgrestError";
+import { PASSWORD_MIN_LENGTH } from "@/lib/passwordPolicy";
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -81,6 +82,13 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
   const [editUsername, setEditUsername] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Reset-password dialog state
+  const [workerToReset, setWorkerToReset] = useState<FieldWorker | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const canManage = userRole === 'owner' || userRole === 'editor';
 
@@ -232,6 +240,54 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
     }
   };
 
+  const handleOpenReset = (worker: FieldWorker) => {
+    setWorkerToReset(worker);
+    setResetPassword("");
+    setResetConfirm("");
+    setShowResetPassword(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workerToReset) return;
+
+    if (resetPassword !== resetConfirm) {
+      toast({
+        title: "Error",
+        description: "The two passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResetting(true);
+    try {
+      // Length and "not the username" are enforced by the RPC; its messages
+      // come back through getErrorMessage unchanged.
+      const result = await teamService.resetCredentialPassword(workerToReset.id, resetPassword);
+      const signedOut = result?.sessions_revoked ?? 0;
+      toast({
+        title: "Password reset",
+        description:
+          `"${workerToReset.username}" has a new password.` +
+          (signedOut > 0
+            ? ` ${signedOut} device session${signedOut === 1 ? " was" : "s were"} signed out; ` +
+              "field workers must enter the new password in the app's Settings."
+            : ""),
+      });
+      setWorkerToReset(null);
+      loadWorkers();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: getErrorMessage(error, "Failed to reset password."),
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const activeCount = workers.filter(w => w.is_active).length;
 
   return (
@@ -263,6 +319,13 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
                 Field workers use these credentials to log into the mobile app. They enter the
                 <strong> project code </strong>(<code className="bg-muted px-1 rounded">{projectName}</code>),
                 along with their username and password to access surveys and upload data.
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Every credential gives access to all of this project's surveys. Separate
+                credentials let you tell who uploaded each record (it is attributed to the
+                username) and revoke one worker or team without affecting the rest. Resetting a
+                password signs out every device using it until the new password is entered in
+                the app's Settings.
               </p>
             </div>
           </div>
@@ -355,6 +418,9 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleOpenEdit(worker)}>
                             Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenReset(worker)}>
+                            Reset password
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleToggleStatus(worker)}>
                             {worker.is_active ? 'Disable' : 'Enable'}
@@ -453,9 +519,9 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
         </DialogContent>
       </Dialog>
 
-      {/* Edit Credential Dialog -- username/description only. Password reset
-          needs a server-side RPC since passwords are bcrypt-hashed and the
-          plaintext never reaches the client; that's a separate change. */}
+      {/* Edit Credential Dialog -- username/description only. The password
+          has its own dialog below, backed by a server-side RPC, since it is
+          bcrypt-hashed and the plaintext never reaches the client. */}
       <Dialog open={!!workerToEdit} onOpenChange={(open) => !open && setWorkerToEdit(null)}>
         <DialogContent>
           <DialogHeader>
@@ -495,6 +561,69 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!workerToReset} onOpenChange={(open) => !open && setWorkerToReset(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for "{workerToReset?.username}". Every device signed in with
+              this credential is signed out immediately; field workers then enter the new
+              password by tapping the project in the app's Settings. Unsynced records stay on
+              the phone until they do.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleResetPassword}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-password">New password</Label>
+                <div className="relative">
+                  <Input
+                    id="reset-password"
+                    type={showResetPassword ? "text" : "password"}
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
+                    autoComplete="new-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                  >
+                    {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-confirm">Confirm new password</Label>
+                <Input
+                  id="reset-confirm"
+                  type={showResetPassword ? "text" : "password"}
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWorkerToReset(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={resetting || !resetPassword}>
+                {resetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Reset Password
               </Button>
             </DialogFooter>
           </form>
