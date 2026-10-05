@@ -302,10 +302,10 @@ describe('buildFormChangesCsv', () => {
     const lines = csv.replace(/^\uFEFF/, '').split('\n');
 
     expect(lines[0]).toBe(
-      'formchanges_uuid,record_uuid,tablename,fieldname,oldvalue,newvalue,surveyor_id,changed_at',
+      'formchanges_uuid,record_uuid,tablename,fieldname,oldvalue,newvalue,surveyor_id,changed_at,event_time_utc,device_utc_offset_minutes,reason_for_change',
     );
     expect(lines[1]).toBe(
-      '25cc6710,e7f15122,hh_info,nmembers,5,1,prism,2026-09-08T13:50:21.414899',
+      '25cc6710,e7f15122,hh_info,nmembers,5,1,prism,2026-09-08T13:50:21.414899,,,',
     );
   });
 });

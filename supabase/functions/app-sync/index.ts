@@ -494,6 +494,11 @@ Deno.serve(async (req) => {
                         // offset -- same contract, and same reasoning, as
                         // `submissions.collected_at` above.
                         changed_at: change.changed_at,
+                        reason_for_change: change.reason_for_change ?? null,
+                        // Separate from legacy timezone-free device readings.
+                        // Older clients retain NULL instead of a guessed zone.
+                        event_time_utc: change.event_time_utc ?? null,
+                        device_utc_offset_minutes: change.device_utc_offset_minutes ?? null,
                         // Server-set and genuinely UTC, like `submitted_at`.
                         synced_at: new Date().toISOString(),
                     },

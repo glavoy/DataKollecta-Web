@@ -36,6 +36,7 @@ import {
   ARCHIVED_BADGE_CLASS,
 } from "@/lib/projectStatus";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface ProjectSettingsProps {
   project: {
@@ -57,6 +58,33 @@ interface ProjectSettingsProps {
 const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurveys }: ProjectSettingsProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [lockReason, setLockReason] = useState('');
+  const [lockSaving, setLockSaving] = useState(false);
+  const lockQuery = useQuery({
+    queryKey: ['project-data-lock', project.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('project_data_locks')
+        .select('locked, reason, changed_at').eq('project_id', project.id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const changeDataLock = async () => {
+    if (!lockReason.trim() || lockQuery.isError || lockQuery.isPending) return;
+    setLockSaving(true);
+    try {
+      const { error } = await supabase.rpc('set_project_data_lock', {
+        p_project_id: project.id, p_locked: !lockQuery.data?.locked, p_reason: lockReason.trim(),
+      });
+      if (error) throw error;
+      setLockReason('');
+      await queryClient.invalidateQueries({ queryKey: ['project-data-lock', project.id] });
+      toast({ title: 'Data lock updated', description: 'The change and reason have been recorded.' });
+    } catch (error) {
+      toast({ title: 'Data lock failed', description: getErrorMessage(error, 'The data lock could not be changed.'), variant: 'destructive' });
+    } finally { setLockSaving(false); }
+  };
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || "");
@@ -218,98 +246,33 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
 
     setDeleting(true);
     try {
-      // Delete in order: formchanges → submissions → survey_packages (storage
-      // only, see step 4) → app_sessions → app_credentials → projects.
-      //
-      // project_members is deliberately NOT deleted explicitly, unlike the
-      // others -- the "Owners can delete projects" RLS policy requires the
-      // caller to hold an 'owner' row in project_members FOR THIS PROJECT.
-      // Deleting that row first (as this used to do) makes the final
-      // `projects` delete below match zero rows under RLS -- which
-      // PostgREST reports as success, not an error, so the UI shows
-      // "Project deleted" while the row silently survives (confirmed live:
-      // 2026-08-24, a project whose project_members row was gone but whose
-      // projects row was still there, blocking recreation with the same
-      // code). project_members cascades from the `projects` delete instead,
-      // by which point RLS has already been satisfied.
-      //
-      // crfs and survey_packages rows are deliberately NOT deleted here --
-      // they cascade from the `projects` delete at the end. That is a
-      // change from deleting them explicitly: the survey lifecycle guard
-      // triggers (enforce_survey_package_delete_guard /
-      // enforce_crf_parent_unlocked) refuse a DIRECT delete of a
-      // deployed/complete survey or its forms, precisely so a locked
-      // survey can't be removed out from under field devices by any route
-      // other than deleting the whole project. They exempt cascades that
-      // arrive because the parent row is already gone (Postgres removes
-      // the parent before running the RI cascade) -- which is exactly the
-      // path `DELETE FROM projects` takes, but an explicit
-      // `DELETE FROM survey_packages ... WHERE project_id = ...` is not:
-      // the parent project row is still very much present, so the guard
-      // would fire and abort this entire "delete project" flow the moment
-      // it hit a project that had ever deployed a survey.
-
-      // 1. Delete formchanges directly by project_id -- it carries that
-      // column itself (NOT NULL), so there is no need to enumerate
-      // submissions' local_unique_ids first. That indirect approach used to
-      // be the only option and had two problems: an unpaged select()
-      // silently returned only the first 1000 submissions, orphaning
-      // formchanges past that point; and even fully paged, it can never
-      // find a formchanges row whose submission was already deleted by an
-      // earlier partial/failed run -- exactly the state a wedged project
-      // from before this fix would be in. Filtering by project_id catches
-      // those too. See migration 20260822055223 for the matching DB-level
-      // fix (formchanges.project_id now cascades from projects), which
-      // makes this belt-and-suspenders once deployed rather than load-
-      // bearing on its own.
-      await supabase.from('formchanges').delete().eq('project_id', project.id);
-
-      // 2. Delete submissions
-      await supabase.from('submissions').delete().eq('project_id', project.id);
-
-      // 3. Storage isn't governed by the DB's referential integrity, so it
-      // needs its own cleanup regardless of how the rows go away -- collect
-      // every zip path now and remove the objects. The survey_packages and
-      // crfs ROWS are left for the `projects` cascade (see the note above).
-      const surveyPackages = await fetchAllRows<{ zip_file_path: string | null }>((from, to) =>
-        supabase.from('survey_packages').select('zip_file_path').eq('project_id', project.id).range(from, to),
-      );
-
-      const filePaths = surveyPackages.map(s => s.zip_file_path).filter((p): p is string => Boolean(p));
-      if (filePaths.length > 0) {
-        await supabase.storage.from('surveys').remove(filePaths);
+      // Delete only an empty project. The database repeats this check
+      // atomically and refuses cascades that would destroy retained records.
+      const [submissionCheck, auditCheck] = await Promise.all([
+        supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('project_id', project.id),
+        supabase.from('formchanges').select('id', { count: 'exact', head: true }).eq('project_id', project.id),
+      ]);
+      if (submissionCheck.error) throw submissionCheck.error;
+      if (auditCheck.error) throw auditCheck.error;
+      if (submissionCheck.count || auditCheck.count) {
+        throw new Error('This project contains retained data. Archive it instead of deleting.');
       }
-
-      // 4. Delete app sessions
-      await supabase.from('app_sessions').delete().eq('project_id', project.id);
-
-      // 5. Delete app credentials
-      await supabase.from('app_credentials').delete().eq('project_id', project.id);
-
-      // 6. Delete the project -- cascades to project_members, survey_packages
-      // (then from there to crfs), app_sessions and app_credentials (all
-      // ON DELETE CASCADE), which is what lets this succeed even when the
-      // project contains a locked survey.
-      //
-      // count: 'exact' so a zero-row delete under RLS (e.g. the caller
-      // isn't actually an 'owner' row for this project) surfaces as an
-      // error instead of a false-success toast -- see the note above this
-      // block for exactly how that happened before.
-      const { error, count } = await supabase
-        .from('projects')
-        .delete({ count: 'exact' })
-        .eq('id', project.id);
-
+      const surveyPackages = await fetchAllRows<{ zip_file_path: string | null }>((from, to) =>
+        supabase.from('survey_packages').select('zip_file_path').eq('project_id', project.id).order('id').range(from, to),
+      );
+      const { error, count } = await supabase.from('projects').delete({ count: 'exact' }).eq('id', project.id);
       if (error) throw error;
-      if (!count) {
-        throw new Error(
-          "The project wasn't deleted -- you may no longer have owner access to it."
-        );
+      if (!count) throw new Error('Project deletion was not authorised.');
+      // Storage cleanup follows successful database deletion, never precedes it.
+      const paths = surveyPackages.map(p => p.zip_file_path).filter((p): p is string => Boolean(p));
+      if (paths.length) {
+        const { error: storageError } = await supabase.storage.from('surveys').remove(paths);
+        if (storageError) toast({ title: 'Storage cleanup required', description: 'The empty project was deleted, but its unused package files could not be removed.', variant: 'destructive' });
       }
 
       toast({
         title: "Project deleted",
-        description: "The project and all its data have been permanently deleted.",
+        description: "The empty project has been deleted.",
       });
 
       navigate('/app/projects');
@@ -335,6 +298,22 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
       </div>
 
       {/* General Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Data lock</CardTitle>
+          <CardDescription>Locking prevents new records and changes, including delayed uploads. Read access and export remain available. Obtain renewed data endorsement after authorised reopening and correction.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p role="status">{lockQuery.isPending ? 'Checking data lock…' : lockQuery.isError ? 'Data lock status could not be verified.' : lockQuery.data?.locked ? 'Data are locked' : 'Data are open for collection'}</p>
+          {isOwner && <>
+            <Label htmlFor="data-lock-reason">Reason for locking or reopening</Label>
+            <Textarea id="data-lock-reason" value={lockReason} onChange={event => setLockReason(event.target.value)} disabled={lockSaving} />
+            <Button onClick={changeDataLock} disabled={lockSaving || lockQuery.isPending || lockQuery.isError || !lockReason.trim()}>
+              {lockSaving ? 'Saving…' : lockQuery.data?.locked ? 'Reopen data' : 'Lock data'}
+            </Button>
+          </>}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -529,7 +508,7 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
             <AlertDialogTitle>Delete Project?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                This will permanently delete <strong>{project.name}</strong> and all associated data including:
+                Only an empty project can be permanently deleted. Projects containing collected records or audit history must be archived. Deleting <strong>{project.name}</strong> removes its unused configuration including:
               </p>
               <ul className="list-disc list-inside text-sm space-y-1">
                 <li>All surveys and forms</li>

@@ -27,6 +27,8 @@ export interface FormChange {
   surveyor_id: string;
   changed_at: string;
   synced_at: string;
+  event_time_utc: string | null;
+  reason_for_change: string | null;
 }
 
 export interface SyncStats {

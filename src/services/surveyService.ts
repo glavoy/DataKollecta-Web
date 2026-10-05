@@ -6,7 +6,7 @@ import { normalizeStoredQuestions } from "@/lib/xml/normalize";
 import { SurveyStatus, isSurveyLocked } from "@/lib/surveyStatus";
 import { SurveyLockedError, findSurveyIdConflict, surveyIdConflictMessage } from "@/lib/errors/surveyErrors";
 import { versionedSurveyId, versionedDisplayName, nextVersionNumber } from "@/lib/surveyVersion";
-import { fetchAllRows, chunkIds } from "@/lib/supabasePaging";
+
 import JSZip from "jszip";
 
 export const surveyService = {
@@ -754,66 +754,19 @@ export const surveyService = {
   }): Promise<void> {
     const { surveyId, zipFilePath } = args;
 
-    // Delete the zip file from storage first
-    if (zipFilePath) {
-      const { error: storageError } = await supabase.storage
-        .from('surveys')
-        .remove([zipFilePath]);
-
-      if (storageError) {
-        console.error("Error deleting file from storage:", storageError);
-        // Don't throw - continue with database deletion even if storage fails
-        // The file might already be deleted or not exist
-      }
-    }
-
-    // Delete dependent Submissions and History. The submissions delete
-    // below isn't row-capped (a DELETE with no representation isn't
-    // subject to PostgREST's max_rows response cap), but this SELECT is
-    // -- so it must be paged, or a survey with more than 1000 submissions
-    // only has the first 1000 records' formchanges cleaned up, leaving
-    // the rest to later brick project deletion (formchanges has no
-    // ON DELETE CASCADE from projects).
-    const submissionsData = await fetchAllRows<{ id: string; local_unique_id: string | null }>(
-      (from, to) =>
-        supabase
-          .from('submissions')
-          .select('id, local_unique_id')
-          .eq('survey_package_id', surveyId)
-          .range(from, to),
-    );
-
-    if (submissionsData.length > 0) {
-      const recordUuids = submissionsData
-        .map(s => s.local_unique_id)
-        .filter((id): id is string => id !== null);
-
-      if (recordUuids.length > 0) {
-        // Chunked -- 1000+ UUIDs in one .in() exceeds a GET querystring's
-        // practical length ceiling and fails as a 414.
-        for (const chunk of chunkIds(recordUuids)) {
-          await supabase.from('formchanges').delete().in('record_uuid', chunk);
-        }
-      }
-
-      await supabase
-        .from('submissions')
-        .delete()
-        .eq('survey_package_id', surveyId);
-    }
-
-    // Delete CRFs
-    await supabase
-      .from('crfs')
-      .delete()
-      .eq('survey_package_id', surveyId);
-
-    // Delete Survey Package
-    const { error } = await supabase
-      .from('survey_packages')
-      .delete()
-      .eq('id', surveyId);
-
+    // Refuse before touching Storage. The database guards repeat this check
+    // atomically so a concurrent upload cannot make deletion destructive.
+    const { count, error: countError } = await supabase.from('submissions')
+      .select('id', { count: 'exact', head: true }).eq('survey_package_id', surveyId);
+    if (countError) throw countError;
+    if (count) throw new Error('This survey contains retained data and cannot be deleted.');
+    const { error, data } = await supabase.from('survey_packages')
+      .delete().eq('id', surveyId).select('id').single();
     if (error) throw error;
+    if (!data) throw new Error('Survey deletion was not authorised.');
+    if (zipFilePath) {
+      const { error: storageError } = await supabase.storage.from('surveys').remove([zipFilePath]);
+      if (storageError) throw storageError;
+    }
   },
 };

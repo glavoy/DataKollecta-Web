@@ -44,6 +44,8 @@ import {
 } from "@/lib/dataExport";
 import { groupByLineage, versionByPackageId } from "@/lib/surveyVersion";
 import { useToast } from "@/hooks/use-toast";
+import { buildExportManifest } from "@/lib/exportManifest";
+import { buildCsv } from "@/lib/csv";
 
 /** A question as it arrives from the parsed survey manifest. */
 type FormField = ExportField;
@@ -290,18 +292,26 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
   );
 
   // Export single form to CSV
-  const handleExportSingleForm = () => {
+  const handleExportSingleForm = async () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0 || !selectedForm) return;
-
+    try {
     const csvContent = buildSubmissionsCsv(
       filteredSubmissions,
       selectedForm.versionByPackage,
       orderedColumnNames,
     );
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const filename = `${selectedForm.table_name}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const manifest = await buildExportManifest({ [filename]: csvContent }, {
+      exportId: crypto.randomUUID(), createdAt: new Date().toISOString(), projectId,
+      scope: `filtered form ${selectedForm.table_name}`,
+    });
+    const { error } = await supabase.rpc('record_data_export', {
+      p_project_id: projectId, p_details: { ...manifest, record_count: filteredSubmissions.length, outcome: 'prepared' },
+    });
+    if (error) throw error;
+    const url = URL.createObjectURL(blob);
 
     link.href = url;
     link.download = filename;
@@ -309,6 +319,12 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+    link.href = manifestUrl; link.download = `${filename}.manifest.json`;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(manifestUrl);
+    } catch {
+      toast({ title: 'Export failed', description: 'The data could not be prepared or its export record saved.', variant: 'destructive' });
+    }
   };
 
   // Export every form of a survey -- across all its versions -- to one ZIP.
@@ -320,6 +336,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
 
     try {
       const zip = new JSZip();
+      const exportFiles: Record<string, string> = {};
       const versionIds = survey.forms[0]?.survey_package_ids ?? [];
 
       // Export each form to CSV and add to ZIP -- paged, not a single
@@ -333,6 +350,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
             .eq('project_id', projectId)
             .in('survey_package_id', form.survey_package_ids)
             .eq('table_name', form.table_name)
+            .order('id')
             .range(from, to),
         );
 
@@ -341,14 +359,11 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
         // collected for this form" indistinguishable from a broken export --
         // a manifest declaring four forms would produce three files with
         // nothing to say which case it was.
-        zip.file(
-          `${form.table_name}.csv`,
-          buildSubmissionsCsv(
+        exportFiles[`${form.table_name}.csv`] = buildSubmissionsCsv(
             formSubmissions,
             form.versionByPackage,
             declaredColumns(form.allFields, { hasParent: !!form.parent_table }),
-          ),
-        );
+          );
       }
 
       // Export formchanges for this survey.
@@ -360,6 +375,8 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
         supabase
           .from('submissions')
           .select('local_unique_id')
+          .eq('project_id', projectId)
+          .order('id')
           .in('survey_package_id', versionIds)
           .range(from, to),
       );
@@ -376,16 +393,37 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
           await Promise.all(
             chunkIds(recordUuids).map((chunk) =>
               fetchAllRows<ExportFormChange>((from, to) =>
-                supabase.from('formchanges').select('*').in('record_uuid', chunk).range(from, to),
+                supabase.from('formchanges').select('*').eq('project_id', projectId).in('record_uuid', chunk).order('id').range(from, to),
               ),
             ),
           )
         ).flat();
 
         if (formchanges.length > 0) {
-          zip.file('formchanges.csv', buildFormChangesCsv(formchanges));
+          exportFiles['formchanges.csv'] = buildFormChangesCsv(formchanges);
         }
       }
+
+      // Include a header even when no device changes exist. Server history
+      // includes initial entries and is separate from the device event stream.
+      exportFiles['formchanges.csv'] ??= buildFormChangesCsv([]);
+      const audit = await fetchAllRows<Record<string, unknown>>((from, to) =>
+        supabase.from('system_audit_events').select('*').eq('project_id', projectId).order('id').range(from, to),
+      );
+      exportFiles['project_audit.csv'] = buildCsv(
+        ['id', 'project_id', 'entity_type', 'entity_id', 'operation', 'occurred_at', 'actor_user_id', 'actor_database_role', 'uploader_username', 'old_values', 'new_values', 'reason'],
+        audit.map(row => ['id', 'project_id', 'entity_type', 'entity_id', 'operation', 'occurred_at', 'actor_user_id', 'actor_database_role', 'uploader_username', 'old_values', 'new_values', 'reason'].map(key => row[key])),
+      );
+      const manifest = await buildExportManifest(exportFiles, {
+        exportId: crypto.randomUUID(), createdAt: new Date().toISOString(), projectId,
+        scope: `survey ${surveyCode}; project_audit.csv covers the whole authorised project`,
+      });
+      const { error: auditError } = await supabase.rpc('record_data_export', {
+        p_project_id: projectId, p_details: { ...manifest, outcome: 'prepared' },
+      });
+      if (auditError) throw auditError;
+      for (const [path, content] of Object.entries(exportFiles)) zip.file(path, content);
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
       // Generate and download ZIP
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -709,7 +747,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
               {selectedRecord.local_unique_id && (
                 <div>
                   <p className="text-sm font-medium mb-2">History</p>
-                  <FormChangesView recordUuid={selectedRecord.local_unique_id} />
+                  <FormChangesView recordUuid={selectedRecord.local_unique_id} submissionId={selectedRecord.id} />
                 </div>
               )}
             </div>

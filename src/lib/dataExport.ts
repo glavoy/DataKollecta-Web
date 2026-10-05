@@ -42,6 +42,9 @@ export interface ExportFormChange {
   newvalue: string | null;
   surveyor_id: string | null;
   changed_at: string | null;
+  event_time_utc?: string | null;
+  device_utc_offset_minutes?: number | null;
+  reason_for_change?: string | null;
 }
 
 /**
@@ -231,6 +234,9 @@ export const FORMCHANGES_COLUMNS = [
   'newvalue',
   'surveyor_id',
   'changed_at',
+  'event_time_utc',
+  'device_utc_offset_minutes',
+  'reason_for_change',
 ] as const;
 
 export function buildFormChangesCsv(formchanges: readonly ExportFormChange[]): string {

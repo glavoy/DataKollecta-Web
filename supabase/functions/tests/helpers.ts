@@ -15,6 +15,9 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.115.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
+if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(SUPABASE_URL).hostname)) {
+  throw new Error("These synthetic integration tests must use a loopback-only local stack");
+}
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ??
@@ -222,6 +225,17 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Fixtu
     surveyPackageId: surveyPackage.id,
     surveyId,
     cleanup: async () => {
+      // Retention guards apply to service-role callers too. Preserve synthetic
+      // evidence rather than introducing a production bypass for test cleanup.
+      const retained = await admin.from("submissions").select("id", { count: "exact", head: true }).eq("project_id", project.id);
+      const history = await admin.from("formchanges").select("id", { count: "exact", head: true }).eq("project_id", project.id);
+      if (retained.error) throw retained.error;
+      if (history.error) throw history.error;
+      if (retained.count || history.count) {
+        await admin.from("projects").update({ status: "paused", archived_at: new Date().toISOString() }).eq("id", project.id);
+        await admin.from("app_credentials").update({ is_active: false }).eq("project_id", project.id);
+        return;
+      }
       // projects cascades to credentials, sessions, submissions, formchanges
       // and survey_packages; the profile and auth user are the only rows left.
       await admin.from("projects").delete().eq("id", project.id);
@@ -241,9 +255,13 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Fixtu
  * the same client the application uses.
  */
 export async function sql(statements: string): Promise<void> {
+  const databaseUrl = Deno.env.get("SUPABASE_DB_URL") ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(databaseUrl).hostname)) {
+    throw new Error("Test SQL must use a loopback-only local database");
+  }
   const command = new Deno.Command("psql", {
     args: [
-      Deno.env.get("SUPABASE_DB_URL") ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      databaseUrl,
       "-v",
       "ON_ERROR_STOP=1",
       "-q",
