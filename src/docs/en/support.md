@@ -1,23 +1,28 @@
 # Getting support
 
-## Start with your project team
+## Questions about your study
 
-For questions about a particular study, such as access, surveys or data, contact that project's **owner**. You can see who the owners are on the project's **Members** tab.
+For questions about a particular study, such as access, surveys or data, contact that project's **owner** first. The owners are listed on the project's **Members** tab.
 
-## Reporting a problem with DataKollecta
+## Reporting a problem or suggesting an improvement
 
-If something in the website or the field app isn't working as described in this documentation, contact the DataKollecta support team. Your project owner can give you the contact details.
+DataKollecta is developed in the open on GitHub. To report a bug, ask a question, or suggest an improvement, **open an issue** in the repository for the part of the platform concerned:
 
-To help us fix it quickly, include:
+| If it's about… | Open an issue in |
+|---|---|
+| This website: projects, the Survey Designer, data, exports, or this documentation | [DataKollecta-Web](https://github.com/glavoy/DataKollecta-Web/issues/new) |
+| The field app on phones and tablets: interviews, sync, the Settings screen | [DataKollecta](https://github.com/glavoy/DataKollecta/issues/new) |
+| Building surveys from Excel with SurveyGen | [DataKollecta-SurveyGen](https://github.com/glavoy/DataKollecta-SurveyGen/issues/new) |
+| Dry-running a survey package with SurveyTest | [DataKollecta-SurveyTest](https://github.com/glavoy/DataKollecta-SurveyTest/issues/new) |
+
+You need a free GitHub account to open an issue. The developer is notified straight away, and GitHub emails you when someone replies. Not sure which repository? Use DataKollecta-Web.
+
+### What to include
 
 - **What you were doing**, and what you expected to happen
-- **What happened instead**, with the exact wording of any error message, or a screenshot
+- **What happened instead**, with the exact wording of any error message
 - **The project code** and, if relevant, the **Survey ID** and **record ID**
-- **The portal version**, shown at the bottom of the left sidebar (for example `v1.0.0 · a1b2c3d`), or the **app version** from the field app's Settings
-- **When it happened** (date and time), so we can find it in the logs
+- **The version**: the portal version is shown at the bottom of the left sidebar (for example `v1.0.0 · a1b2c3d`), and the app version is in the field app's Settings
+- **When it happened** (date and time)
 
-> **Never send passwords**, and don't include participants' personal information in screenshots or messages. Use record IDs instead.
-
-## Suggesting an improvement
-
-Suggestions for the website, the designer or this documentation are welcome. Send them through the same contact.
+> **Issues are public.** Never include passwords, participants' names or other personal information, and check screenshots before attaching them. Use project codes and record IDs instead. If you need to share something sensitive, say so in the issue, without the details, and the developer will arrange a private channel.

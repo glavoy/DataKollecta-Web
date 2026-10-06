@@ -28,7 +28,7 @@ Its README is the complete reference for the Excel format. It covers every colum
 - It tries to make each skip rule both fire and not fire.
 - It writes a report of design problems, such as questions that can never be reached, or answers that leave the interviewer stuck.
 
-It is a useful step between building a package and testing it on phones. It is not yet published separately, so ask your DataKollecta contact for a copy.
+It is a useful step between building a package and testing it on phones. → [DataKollecta-SurveyTest on GitHub](https://github.com/glavoy/DataKollecta-SurveyTest)
 
 ## Designer or Excel?
 

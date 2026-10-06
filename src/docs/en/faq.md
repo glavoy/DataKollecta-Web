@@ -63,7 +63,7 @@ A test device synced after the survey was deployed. An owner can [reclassify](/d
 
 ### Subject IDs are duplicated or restarted on a device
 
-This happens when a survey's **Database Name** changes between versions, or when an app is reinstalled and its data cleared. The website prevents the first cause for surveys managed here. Contact support if you see it.
+This happens when a survey's **Database Name** changes between versions, or when an app is reinstalled and its data cleared. The website prevents the first cause for surveys managed here. If you see it, [report it](/docs/support).
 
 ## Account
 
