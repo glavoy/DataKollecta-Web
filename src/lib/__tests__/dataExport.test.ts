@@ -27,6 +27,7 @@ function submission(
     collected_at: '2026-09-08T13:49:08.820209',
     submitted_at: '2026-09-08T10:50:40.857183+00:00',
     survey_package_id: 'pkg-1',
+    data_status: 'deployed',
     data,
     ...overrides,
   };
@@ -193,6 +194,20 @@ describe('buildSubmissionsCsv', () => {
     const csv = buildSubmissionsCsv([submission({ hhid: '438020004' })], { 'pkg-1': 3 });
     const firstCell = csv.replace(/^\uFEFF/, '').split('\n')[1].split(',')[0];
     expect(firstCell).toBe('3');
+  });
+
+  it('labels every row test or deployed, whatever the export filter was', () => {
+    const csv = buildSubmissionsCsv(
+      [
+        submission({ hhid: '1' }, { local_unique_id: 'row-1', data_status: 'test' }),
+        submission({ hhid: '2' }, { local_unique_id: 'row-2', data_status: 'deployed' }),
+      ],
+      { 'pkg-1': 1 },
+    );
+    const [header, ...rows] = csv.replace(/^\uFEFF/, '').split('\n');
+    const column = header.split(',').indexOf('data_status');
+    expect(column).toBe(1);
+    expect(rows.map((row) => row.split(',')[column])).toEqual(['test', 'deployed']);
   });
 
   it('writes a header-only CSV for a form with no rows', () => {

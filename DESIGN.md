@@ -116,7 +116,16 @@ Real tables, in the order data actually flows through them:
   device info for that session.
 - **`submissions`** — the actual collected data, one row per completed form
   instance, stored as JSONB in `data`. `local_unique_id` is the mobile app's own
-  generated ID, used for upsert-based deduplication.
+  generated ID, used for upsert-based deduplication. `data_status` (`test` |
+  `deployed`) is the survey's status when the server **first** received the
+  record, stamped by a trigger. A survey moves test → deployed in place, with
+  no re-download, so the phone never knows its status (the `[TEST]` prefix
+  exists only in `app-login`'s download list) and only the server can label a
+  record. A resync never changes the label. The one gap is a test device that
+  syncs old test records after deployment: they arrive labelled `deployed`,
+  which is why the deploy dialog says to sync test devices first, and why
+  owners can correct labels through the audited `reclassify_submissions` RPC.
+  The data tab and every export filter on it, defaulting to deployed data.
 - **`formchanges`** — the audit trail for edits made *after* a submission first
   synced (either a field correction made on the phone and re-synced, or an edit
   made directly on the website): old value, new value, who changed it, when.

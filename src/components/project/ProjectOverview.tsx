@@ -39,6 +39,8 @@ interface SurveyStats {
   display_name: string;
   versionCount: number;
   recordCount: number;
+  /** How many of recordCount arrived while the survey was in test. */
+  testCount: number;
 }
 
 const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) => {
@@ -63,17 +65,26 @@ const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) 
       // Get record count for each survey, across all of its versions
       const surveysWithCounts = await Promise.all(
         groupByLineage(surveys).map(async (lineage) => {
-          const { count } = await supabase
-            .from('submissions')
-            .select('*', { count: 'exact', head: true })
-            .in('survey_package_id', lineage.versions.map((v) => v.id));
+          const versionIds = lineage.versions.map((v) => v.id);
+          const [{ count }, { count: testCount }] = await Promise.all([
+            supabase
+              .from('submissions')
+              .select('*', { count: 'exact', head: true })
+              .in('survey_package_id', versionIds),
+            supabase
+              .from('submissions')
+              .select('*', { count: 'exact', head: true })
+              .in('survey_package_id', versionIds)
+              .eq('data_status', 'test'),
+          ]);
 
           return {
             id: lineage.surveyCode,
             name: lineage.surveyCode,
             display_name: lineage.latest.display_name,
             versionCount: lineage.versions.length,
-            recordCount: count || 0
+            recordCount: count || 0,
+            testCount: testCount || 0,
           };
         })
       );
@@ -82,6 +93,8 @@ const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) 
     },
     enabled: stats.submissionsCount > 0,
   });
+
+  const testRecords = (surveyStats ?? []).reduce((sum, s) => sum + s.testCount, 0);
 
   return (
     <div className="space-y-6">
@@ -107,7 +120,9 @@ const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.submissionsCount}</div>
-            <p className="text-xs text-muted-foreground">Data submissions</p>
+            <p className="text-xs text-muted-foreground">
+              Data submissions{testRecords > 0 && <>, {testRecords} of them test</>}
+            </p>
           </CardContent>
         </Card>
 
@@ -172,6 +187,7 @@ const ProjectOverview = ({ project, stats, onTabChange }: ProjectOverviewProps) 
                   </div>
                   <Badge variant="secondary">
                     {survey.recordCount} record{survey.recordCount !== 1 ? 's' : ''}
+                    {survey.testCount > 0 && ` (${survey.testCount} test)`}
                   </Badge>
                 </div>
               ))}

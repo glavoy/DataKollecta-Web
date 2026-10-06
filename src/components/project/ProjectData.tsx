@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +15,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Download,
   Database,
@@ -25,9 +30,11 @@ import {
   ChevronRight,
   Loader2,
   FileSpreadsheet,
-  Package
+  FlaskConical,
+  Package,
+  Tags,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import JSZip from "jszip";
@@ -46,6 +53,19 @@ import { groupByLineage, versionByPackageId } from "@/lib/surveyVersion";
 import { useToast } from "@/hooks/use-toast";
 import { buildExportManifest } from "@/lib/exportManifest";
 import { buildCsv } from "@/lib/csv";
+import {
+  countFor,
+  DATA_STATUS_FILTER_LABELS,
+  DATA_STATUS_FILTERS,
+  DEFAULT_DATA_STATUS_FILTER,
+  exportFileSuffix,
+  exportScopeLabel,
+  parseDataStatusFilter,
+  withDataStatus,
+  type DataStatus,
+  type DataStatusCounts,
+  type DataStatusFilter,
+} from "@/lib/dataStatus";
 
 /** A question as it arrives from the parsed survey manifest. */
 type FormField = ExportField;
@@ -61,7 +81,8 @@ interface FormWithCount {
       Used to give a form holding no rows a header, where `fields` alone would
       only describe the newest version. */
   allFields: FormField[];
-  recordCount: number;
+  /** Records per data_status, across every version. */
+  recordCounts: DataStatusCounts;
   /** Every version of this survey that could hold rows for this form.
       Versions of one survey deliberately SHARE a table_name -- that is what
       makes their data one dataset -- so queries scope to this whole set
@@ -80,7 +101,7 @@ interface SurveyWithForms {
   display_name: string;
   versionCount: number;
   forms: FormWithCount[];
-  totalRecords: number;
+  totalRecords: DataStatusCounts;
 }
 
 interface Submission {
@@ -91,14 +112,43 @@ interface Submission {
   collected_at: string;
   submitted_at: string;
   survey_package_id: string;
+  data_status: DataStatus;
 }
 
 interface ProjectDataProps {
   projectId: string;
+  /** The viewer's project role; only an owner may reclassify records. */
+  userRole?: string | null;
 }
 
-const ProjectData = ({ projectId }: ProjectDataProps) => {
+const NO_RECORDS: DataStatusCounts = { test: 0, deployed: 0 };
+
+const sumCounts = (counts: DataStatusCounts[]): DataStatusCounts =>
+  counts.reduce((sum, c) => ({ test: sum.test + c.test, deployed: sum.deployed + c.deployed }), NO_RECORDS);
+
+const plural = (n: number, word: string) => `${n} ${word}${n !== 1 ? 's' : ''}`;
+
+const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isOwner = userRole === 'owner';
+  // In the URL rather than local storage, so a link to "this project's test
+  // data" means the same thing to whoever opens it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dataFilter = parseDataStatusFilter(searchParams.get('data'));
+  const setDataFilter = (filter: DataStatusFilter) => {
+    const next = new URLSearchParams(searchParams);
+    if (filter === DEFAULT_DATA_STATUS_FILTER) next.delete('data');
+    else next.set('data', filter);
+    setSearchParams(next, { replace: true });
+    setCurrentPage(1);
+    setSelectedIds(new Set());
+  };
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [reclassifyOpen, setReclassifyOpen] = useState(false);
+  const [reclassifyTarget, setReclassifyTarget] = useState<DataStatus>('test');
+  const [reclassifyReason, setReclassifyReason] = useState('');
+  const [reclassifying, setReclassifying] = useState(false);
   const [selectedForm, setSelectedForm] = useState<FormWithCount | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<Submission | null>(null);
@@ -147,7 +197,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
               display_name: lineage.latest.display_name,
               versionCount: lineage.versions.length,
               forms: [],
-              totalRecords: 0
+              totalRecords: NO_RECORDS,
             };
           }
 
@@ -193,22 +243,33 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
           }
           const uniqueForms = Array.from(byTable.values());
 
-          // Get record count for each form, across every version
+          // Record counts for each form, across every version, per
+          // data_status -- both are always fetched so the filter can show what
+          // it is hiding, and switching it needs no refetch.
+          const countOf = async (tableName: string, status: DataStatus) => {
+            const { count, error } = await supabase
+              .from('submissions')
+              .select('*', { count: 'exact', head: true })
+              .eq('project_id', projectId)
+              .in('survey_package_id', versionIds)
+              .eq('table_name', tableName)
+              .eq('data_status', status);
+            if (error) throw error;
+            return count || 0;
+          };
           const formsWithCounts = await Promise.all(
             uniqueForms.map(async (form) => {
-              const { count } = await supabase
-                .from('submissions')
-                .select('*', { count: 'exact', head: true })
-                .eq('project_id', projectId)
-                .in('survey_package_id', versionIds)
-                .eq('table_name', form.table_name);
+              const [test, deployed] = await Promise.all([
+                countOf(form.table_name, 'test'),
+                countOf(form.table_name, 'deployed'),
+              ]);
 
               return {
                 ...form,
                 allFields: Array.from(fieldsByTable.get(form.table_name)?.values() ?? []),
                 survey_package_ids: versionIds,
                 versionByPackage,
-                recordCount: count || 0,
+                recordCounts: { test, deployed },
               };
             })
           );
@@ -219,7 +280,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
             display_name: lineage.latest.display_name,
             versionCount: lineage.versions.length,
             forms: formsWithCounts,
-            totalRecords: formsWithCounts.reduce((sum, f) => sum + f.recordCount, 0)
+            totalRecords: sumCounts(formsWithCounts.map((f) => f.recordCounts)),
           };
         })
       );
@@ -230,16 +291,19 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
 
   // Fetch submissions for the selected form
   const { data: submissions, isLoading: submissionsLoading } = useQuery({
-    queryKey: ['formSubmissions', projectId, selectedForm?.survey_package_ids, selectedForm?.table_name],
+    queryKey: ['formSubmissions', projectId, selectedForm?.survey_package_ids, selectedForm?.table_name, dataFilter],
     queryFn: async () => {
       if (!selectedForm) return [];
       return fetchAllRows<Submission>((from, to) =>
-        supabase
-          .from('submissions')
-          .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at, survey_package_id')
-          .eq('project_id', projectId)
-          .in('survey_package_id', selectedForm.survey_package_ids)
-          .eq('table_name', selectedForm.table_name)
+        withDataStatus(
+          supabase
+            .from('submissions')
+            .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at, survey_package_id, data_status')
+            .eq('project_id', projectId)
+            .in('survey_package_id', selectedForm.survey_package_ids)
+            .eq('table_name', selectedForm.table_name),
+          dataFilter,
+        )
           .order('collected_at', { ascending: false })
           .range(from, to),
       );
@@ -281,8 +345,64 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     }));
   }, [selectedForm]);
 
-  // No filtering needed
+  // Already narrowed to the data filter by the query.
   const filteredSubmissions = submissions || [];
+
+  const projectCounts = sumCounts((surveysWithForms ?? []).map((s) => s.totalRecords));
+
+  const allSelected = filteredSubmissions.length > 0 && filteredSubmissions.every((s) => selectedIds.has(s.id));
+  const toggleAll = () =>
+    setSelectedIds(allSelected ? new Set() : new Set(filteredSubmissions.map((s) => s.id)));
+  const toggleOne = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const openReclassify = () => {
+    // Default to the label the selection mostly does NOT have -- the usual
+    // case is late-synced test records that arrived stamped deployed.
+    const selected = filteredSubmissions.filter((s) => selectedIds.has(s.id));
+    const testCount = selected.filter((s) => s.data_status === 'test').length;
+    setReclassifyTarget(testCount > selected.length / 2 ? 'deployed' : 'test');
+    setReclassifyReason('');
+    setReclassifyOpen(true);
+  };
+
+  const handleReclassify = async () => {
+    const reason = reclassifyReason.trim();
+    if (!reason || selectedIds.size === 0) return;
+    setReclassifying(true);
+    try {
+      const { data: changed, error } = await supabase.rpc('reclassify_submissions', {
+        p_project_id: projectId,
+        p_ids: [...selectedIds],
+        p_data_status: reclassifyTarget,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      toast({
+        title: 'Records reclassified',
+        description: `${plural(Number(changed) || 0, 'record')} marked ${reclassifyTarget}. The change is in the audit trail.`,
+      });
+      setReclassifyOpen(false);
+      setSelectedIds(new Set());
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['surveysWithForms', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['formSubmissions', projectId] }),
+      ]);
+    } catch (error) {
+      toast({
+        title: 'Reclassify failed',
+        description: error instanceof Error ? error.message : 'The records could not be reclassified.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReclassifying(false);
+    }
+  };
 
   // Pagination
   const totalPages = Math.ceil((filteredSubmissions?.length || 0) / pageSize);
@@ -302,13 +422,14 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
     );
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const filename = `${selectedForm.table_name}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `${selectedForm.table_name}${exportFileSuffix(dataFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     const manifest = await buildExportManifest({ [filename]: csvContent }, {
       exportId: crypto.randomUUID(), createdAt: new Date().toISOString(), projectId,
-      scope: `filtered form ${selectedForm.table_name}`,
+      scope: `filtered form ${selectedForm.table_name}; ${exportScopeLabel(dataFilter)}`,
     });
     const { error } = await supabase.rpc('record_data_export', {
-      p_project_id: projectId, p_details: { ...manifest, record_count: filteredSubmissions.length, outcome: 'prepared' },
+      p_project_id: projectId,
+      p_details: { ...manifest, record_count: filteredSubmissions.length, data_status_filter: dataFilter, outcome: 'prepared' },
     });
     if (error) throw error;
     const url = URL.createObjectURL(blob);
@@ -344,12 +465,15 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
       // ships an incomplete CSV inside an otherwise "successful" export.
       for (const form of survey.forms) {
         const formSubmissions = await fetchAllRows<ExportSubmission>((from, to) =>
-          supabase
-            .from('submissions')
-            .select('*')
-            .eq('project_id', projectId)
-            .in('survey_package_id', form.survey_package_ids)
-            .eq('table_name', form.table_name)
+          withDataStatus(
+            supabase
+              .from('submissions')
+              .select('*')
+              .eq('project_id', projectId)
+              .in('survey_package_id', form.survey_package_ids)
+              .eq('table_name', form.table_name),
+            dataFilter,
+          )
             .order('id')
             .range(from, to),
         );
@@ -370,14 +494,18 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
       //
       // formchanges carries no survey link of its own -- only record_uuid,
       // which is a submission's local_unique_id -- so the record ids have to
-      // be gathered first, across every version.
+      // be gathered first, across every version, and under the same data
+      // filter so the change log covers exactly the records exported.
       const surveySubmissions = versionIds.length === 0 ? [] : await fetchAllRows<{ local_unique_id: string }>((from, to) =>
-        supabase
-          .from('submissions')
-          .select('local_unique_id')
-          .eq('project_id', projectId)
+        withDataStatus(
+          supabase
+            .from('submissions')
+            .select('local_unique_id')
+            .eq('project_id', projectId)
+            .in('survey_package_id', versionIds),
+          dataFilter,
+        )
           .order('id')
-          .in('survey_package_id', versionIds)
           .range(from, to),
       );
 
@@ -416,10 +544,10 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
       );
       const manifest = await buildExportManifest(exportFiles, {
         exportId: crypto.randomUUID(), createdAt: new Date().toISOString(), projectId,
-        scope: `survey ${surveyCode}; project_audit.csv covers the whole authorised project`,
+        scope: `survey ${surveyCode}; ${exportScopeLabel(dataFilter)}; project_audit.csv covers the whole authorised project`,
       });
       const { error: auditError } = await supabase.rpc('record_data_export', {
-        p_project_id: projectId, p_details: { ...manifest, outcome: 'prepared' },
+        p_project_id: projectId, p_details: { ...manifest, data_status_filter: dataFilter, outcome: 'prepared' },
       });
       if (auditError) throw auditError;
       for (const [path, content] of Object.entries(exportFiles)) zip.file(path, content);
@@ -430,7 +558,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${survey.name}_data_${format(new Date(), 'yyyy-MM-dd')}.zip`;
+      link.download = `${survey.name}_data${exportFileSuffix(dataFilter)}_${format(new Date(), 'yyyy-MM-dd')}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -450,6 +578,7 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
   const handleSelectForm = (form: FormWithCount) => {
     setSelectedForm(form);
     setCurrentPage(1);
+    setSelectedIds(new Set());
     // Removed searchTerm clear and scroll since search is gone and we use a dialog
   };
 
@@ -467,11 +596,37 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-xl font-semibold">Data</h2>
-        <p className="text-sm text-muted-foreground">
-          View and export collected data for this project
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Data</h2>
+          <p className="text-sm text-muted-foreground">
+            View and export collected data for this project
+          </p>
+        </div>
+        <div className="space-y-1">
+          <div role="radiogroup" aria-label="Which data to show" className="inline-flex rounded-md border p-0.5">
+            {DATA_STATUS_FILTERS.map((filter) => (
+              <Button
+                key={filter}
+                role="radio"
+                aria-checked={dataFilter === filter}
+                size="sm"
+                variant={dataFilter === filter ? 'secondary' : 'ghost'}
+                onClick={() => setDataFilter(filter)}
+              >
+                {DATA_STATUS_FILTER_LABELS[filter]}
+                {surveysWithForms && (
+                  <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
+                    {countFor(projectCounts, filter)}
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground text-right">
+            Labelled by the survey's status when each record reached the server
+          </p>
+        </div>
       </div>
 
       {/* Survey Cards */}
@@ -498,7 +653,10 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                       {survey.display_name}
                     </CardTitle>
                     <CardDescription>
-                      {survey.forms.length} form{survey.forms.length !== 1 ? 's' : ''} • {survey.totalRecords} total record{survey.totalRecords !== 1 ? 's' : ''}
+                      {plural(survey.forms.length, 'form')} • {plural(countFor(survey.totalRecords, dataFilter), dataFilter === 'all' ? 'record' : `${dataFilter} record`)}
+                      {dataFilter === 'deployed' && survey.totalRecords.test > 0 && (
+                        <> • {survey.totalRecords.test} test hidden</>
+                      )}
                       {survey.versionCount > 1 && (
                         <> • {survey.versionCount} versions, merged</>
                       )}
@@ -507,14 +665,14 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                   <Button
                     variant="outline"
                     onClick={() => handleExportSurvey(survey.id)}
-                    disabled={survey.totalRecords === 0 || exportingId === survey.id}
+                    disabled={countFor(survey.totalRecords, dataFilter) === 0 || exportingId === survey.id}
                   >
                     {exportingId === survey.id ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
                       <Download className="h-4 w-4 mr-2" />
                     )}
-                    Export All
+                    {dataFilter === 'all' ? 'Export All' : `Export ${DATA_STATUS_FILTER_LABELS[dataFilter]}`}
                   </Button>
                 </div>
               </CardHeader>
@@ -531,8 +689,8 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                           <p className="font-medium">{form.display_name}</p>
                           <p className="text-sm text-muted-foreground">{form.table_name}</p>
                         </div>
-                        <Badge variant={form.recordCount > 0 ? 'secondary' : 'outline'}>
-                          {form.recordCount} record{form.recordCount !== 1 ? 's' : ''}
+                        <Badge variant={countFor(form.recordCounts, dataFilter) > 0 ? 'secondary' : 'outline'}>
+                          {plural(countFor(form.recordCounts, dataFilter), 'record')}
                         </Badge>
                       </div>
                     ))}
@@ -563,10 +721,22 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                 <DialogDescription>
                   {submissionsLoading
                     ? "Loading..."
-                    : `${filteredSubmissions?.length || 0} record${filteredSubmissions?.length !== 1 ? 's' : ''}`}
+                    : `${plural(filteredSubmissions.length, 'record')} • ${exportScopeLabel(dataFilter)}`}
+                  {isOwner && selectedIds.size > 0 && ` • ${selectedIds.size} selected`}
                 </DialogDescription>
               </div>
               <div className="flex gap-2 mr-8"> {/* mr-8 to avoid overlap with close button */}
+                {isOwner && (
+                  <Button
+                    variant="outline"
+                    onClick={openReclassify}
+                    disabled={selectedIds.size === 0}
+                    title="Mark the selected records as test or deployed"
+                  >
+                    <Tags className="h-4 w-4 mr-2" />
+                    Reclassify…
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={handleExportSingleForm}
@@ -591,6 +761,16 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        {isOwner && (
+                          <TableHead className="w-[40px]">
+                            <Checkbox
+                              checked={allSelected}
+                              onCheckedChange={toggleAll}
+                              aria-label={`Select all ${filteredSubmissions.length} records`}
+                              title={`Select all ${filteredSubmissions.length} records, on every page`}
+                            />
+                          </TableHead>
+                        )}
                         <TableHead className="w-[100px]">ID</TableHead>
                         <TableHead>Surveyor</TableHead>
                         <TableHead>Collected</TableHead>
@@ -605,8 +785,25 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                     <TableBody>
                       {paginatedSubmissions.map((submission) => (
                         <TableRow key={submission.id}>
+                          {isOwner && (
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(submission.id)}
+                                onCheckedChange={() => toggleOne(submission.id)}
+                                aria-label={`Select record ${submission.local_unique_id}`}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell className="font-mono text-xs">
-                            {submission.local_unique_id?.substring(0, 8)}...
+                            <span className="inline-flex items-center gap-1.5">
+                              {submission.local_unique_id?.substring(0, 8)}...
+                              {submission.data_status === 'test' && (
+                                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] font-sans">
+                                  <FlaskConical className="h-3 w-3" />
+                                  Test
+                                </Badge>
+                              )}
+                            </span>
                           </TableCell>
                           <TableCell className="text-sm">
                             {submission.surveyor_id || '-'}
@@ -669,7 +866,9 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Database className="h-12 w-12 text-muted-foreground mb-3" />
                 <p className="text-muted-foreground">
-                  No data collected yet for this form.
+                  {dataFilter === 'all'
+                    ? 'No data collected yet for this form.'
+                    : `No ${dataFilter} data for this form.`}
                 </p>
               </div>
             )}
@@ -715,6 +914,12 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
                   <p className="text-sm font-medium">Form</p>
                   <p className="text-sm text-muted-foreground">{selectedForm?.display_name}</p>
                 </div>
+                <div>
+                  <p className="text-sm font-medium">Data</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRecord.data_status === 'test' ? 'Test' : 'Deployed'}
+                  </p>
+                </div>
               </div>
 
               {/* Field Data */}
@@ -752,6 +957,59 @@ const ProjectData = ({ projectId }: ProjectDataProps) => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reclassify Dialog */}
+      <Dialog open={reclassifyOpen} onOpenChange={(open) => !reclassifying && setReclassifyOpen(open)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reclassify {plural(selectedIds.size, 'record')}</DialogTitle>
+            <DialogDescription>
+              Records are labelled by the survey's status when they first reached the server. Use
+              this to correct a label, for example test records a phone uploaded after the
+              survey was deployed. Each change is recorded in the audit trail with your reason.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Mark as</Label>
+              <div role="radiogroup" aria-label="New label" className="flex gap-2">
+                {(['test', 'deployed'] as const).map((status) => (
+                  <Button
+                    key={status}
+                    type="button"
+                    role="radio"
+                    aria-checked={reclassifyTarget === status}
+                    variant={reclassifyTarget === status ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReclassifyTarget(status)}
+                  >
+                    {DATA_STATUS_FILTER_LABELS[status]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reclassify-reason">Reason (required)</Label>
+              <Textarea
+                id="reclassify-reason"
+                value={reclassifyReason}
+                onChange={(e) => setReclassifyReason(e.target.value)}
+                placeholder="e.g. Test interviews from tablet T-04, uploaded after deployment"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReclassifyOpen(false)} disabled={reclassifying}>
+              Cancel
+            </Button>
+            <Button onClick={handleReclassify} disabled={reclassifying || !reclassifyReason.trim()}>
+              {reclassifying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Mark {plural(selectedIds.size, 'record')} {reclassifyTarget}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

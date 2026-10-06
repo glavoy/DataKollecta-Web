@@ -1036,7 +1036,7 @@ const ProjectDetail = () => {
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <ProjectData projectId={project.id} />
+            <ProjectData projectId={project.id} userRole={userRole} />
           </TabsContent>
 
           {/* Members Tab */}
@@ -1173,6 +1173,15 @@ const ProjectDetail = () => {
                     download it at their next login.
                     {surveyForTransition.survey.status === 'draft' && (
                       <> This survey has not been through Test.</>
+                    )}
+                    {surveyForTransition.survey.status === 'test' && (
+                      <>
+                        {' '}
+                        <strong>Sync every test device first.</strong> Records reach the server
+                        labelled with the survey's status at that moment, so test records uploaded
+                        after this point arrive labelled Deployed and have to be reclassified on
+                        the Data tab.
+                      </>
                     )}
                     {deployedSiblings(surveyForTransition.survey).length > 0 && (
                       <>

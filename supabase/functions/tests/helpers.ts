@@ -83,7 +83,8 @@ export interface Fixture {
   username: string;
   password: string;
   credentialId: string;
-  /** A deployed survey package, and the surveyId inside its manifest. */
+  /** The survey package (deployed unless `surveyStatus` said otherwise), and
+      the surveyId inside its manifest. */
   surveyPackageId: string;
   surveyId: string;
   cleanup: () => Promise<void>;
@@ -97,6 +98,10 @@ export interface FixtureOptions {
   hashCost?: number;
   /** Manifest crfs table names. `null` writes a manifest with no crfs key. */
   tableNames?: string[] | null;
+  /** The survey package's status. Deployed unless a test needs otherwise --
+      deployed -> test is not a legal transition, so a test-status survey has
+      to be created that way. */
+  surveyStatus?: "draft" | "test" | "deployed";
 }
 
 /**
@@ -114,6 +119,7 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Fixtu
     credentialActive = true,
     hashCost = 12,
     tableNames = ["enrollee", "vaccination_status"],
+    surveyStatus = "deployed",
   } = options;
 
   const suffix = unique();
@@ -175,7 +181,7 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Fixtu
       version_date: new Date().toISOString(),
       survey_code: `code_${suffix}`,
       version: 1,
-      status: "deployed",
+      status: surveyStatus,
       created_by: ownerId,
       manifest,
     })

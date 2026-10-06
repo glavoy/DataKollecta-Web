@@ -30,6 +30,9 @@ export interface ExportSubmission {
   collected_at: string;
   submitted_at: string;
   survey_package_id: string;
+  /** `test` | `deployed`: the survey's status when the server first received
+      the record. See `src/lib/dataStatus.ts`. */
+  data_status: string;
 }
 
 /** One `formchanges` row as the export reads it. */
@@ -53,9 +56,13 @@ export interface ExportFormChange {
  * `survey_version` leads so a reader can always tell which version produced a
  * row -- without it, a blank cell is ambiguous between "not asked in that
  * version" and "asked and skipped".
+ *
+ * `data_status` is on every row whatever the export's filter was, so a CSV
+ * that has been passed around still says whether it holds test data.
  */
 export const EXPORT_META_COLUMNS = [
   'survey_version',
+  'data_status',
   'local_unique_id',
   'surveyor_id',
   'collected_at',
@@ -192,6 +199,7 @@ export function buildSubmissionsCsv(
   const headers = [...EXPORT_META_COLUMNS, ...fieldNames];
   const rows = submissions.map((sub) => [
     versionByPackage[sub.survey_package_id] ?? '',
+    sub.data_status,
     sub.local_unique_id,
     sub.surveyor_id,
     sub.collected_at,
