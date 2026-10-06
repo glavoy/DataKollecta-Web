@@ -10,15 +10,10 @@ import {
     SheetTitle,
     SheetFooter,
 } from "@/components/ui/sheet";
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useRef } from "react";
-import { Trash2, Upload, FileSpreadsheet, ChevronUp, ChevronDown, Info, FileText, Lock } from "lucide-react";
+import { Trash2, Upload, FileSpreadsheet, ChevronUp, ChevronDown, FileText, Lock } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
     Table,
     TableBody,
@@ -42,20 +37,6 @@ interface GlobalSettingsEditorProps {
      *  even while the rest of the draft is freely editable. */
     surveyVersion?: number;
 }
-
-// Info tooltip component
-const InfoTooltip = ({ text }: { text: string }) => (
-    <TooltipProvider>
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-muted-foreground cursor-help inline-block ml-1" />
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-                <p className="text-sm">{text}</p>
-            </TooltipContent>
-        </Tooltip>
-    </TooltipProvider>
-);
 
 const GlobalSettingsEditor = ({ surveyPackage, open, onOpenChange, onSave, readOnly, surveyVersion = 1 }: GlobalSettingsEditorProps) => {
     const [editedPackage, setEditedPackage] = useState<SurveyPackage>({ ...surveyPackage });

@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -16,6 +17,9 @@ import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+
+// Lazy, so the docs' Markdown and renderer stay out of the main bundle.
+const Docs = lazy(() => import("./pages/Docs"));
 
 const queryClient = new QueryClient();
 
@@ -33,6 +37,11 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/docs/*" element={
+                <Suspense fallback={null}>
+                  <Docs />
+                </Suspense>
+              } />
 
               {/* Protected routes - require authentication */}
               <Route path="/app" element={<Navigate to="/app/projects" replace />} />

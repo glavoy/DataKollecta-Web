@@ -233,6 +233,12 @@ const Login = () => {
             </div>
           </CardContent>
         </Card>
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          New to DataKollecta?{" "}
+          <Link to="/docs" className="text-secondary hover:underline">
+            Read the documentation
+          </Link>
+        </p>
       </div>
     </div>
   );

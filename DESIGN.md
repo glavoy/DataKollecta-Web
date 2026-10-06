@@ -48,6 +48,10 @@ policies actually grant (not on any earlier aspirational role list):
   and manage submissions.
 - **Viewer** — read-only access to surveys, forms, and submissions.
 
+`admin` exists only in the database: the portal never offers it (the Members tab assigns
+owner, editor or viewer), so no member is created with it through the UI. The user-facing
+permission matrix is `src/docs/en/people/roles.md`.
+
 ### Field workers (mobile app)
 
 Field workers never log into this website. They authenticate against the mobile

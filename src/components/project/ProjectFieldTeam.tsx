@@ -53,6 +53,7 @@ import { formatDistanceToNow } from "date-fns";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { isUniqueViolation } from "@/lib/errors/postgrestError";
 import { PASSWORD_MIN_LENGTH } from "@/lib/passwordPolicy";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -295,7 +296,7 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Field Team</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">Field Team <HelpLink slug="people/field-team" /></h2>
           <p className="text-sm text-muted-foreground">
             Manage app credentials for mobile data collectors
           </p>

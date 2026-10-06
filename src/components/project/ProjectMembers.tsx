@@ -57,6 +57,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 interface ProjectMembersProps {
   projectId: string;
@@ -253,7 +254,7 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Project Members</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">Project Members <HelpLink slug="people/members" /></h2>
           <p className="text-sm text-muted-foreground">
             Manage who has access to this project on the web
           </p>
@@ -396,7 +397,7 @@ const ProjectMembers = ({ projectId, projectName, userRole, onMemberChange }: Pr
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Start typing to search. Matches email or name (e.g., "geoff" finds "geofflavoy@yahoo.ca")
+                Start typing to search. Matches email or name (e.g., "maria" finds "maria.k@example.org")
               </p>
             </div>
 

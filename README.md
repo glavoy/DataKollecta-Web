@@ -18,6 +18,10 @@ See [DESIGN.md](DESIGN.md) for the full picture — system architecture, user ro
 *   **Edit History:** Every field-level correction made after a record first syncs is tracked and viewable per record.
 *   **Row-Level Security:** Strict data isolation ensures users only access data they are authorized to see.
 
+### 📖 Documentation
+*   **Public user docs at `/docs`:** what the platform does, projects, members, field teams, surveys, the Survey Designer (with a tutorial), the field app, data and exports. No sign-in needed; linked from the landing page, the sign-in page, the sidebar and a Help icon on each project tab.
+*   **Source:** Markdown in `src/docs/en/`, ordered by `src/docs/nav.ts`. `src/docs/__tests__/docs.test.ts` fails on a page missing from the nav, or a broken `/docs/...` link, anchor or image. Screenshots live in `public/docs/img/`.
+
 ### 👥 Team & Field Management
 *   **Worker Credentials:** Manage dedicated credentials for field workers.
 *   **Session Tracking:** Monitor active sessions and data collection activity.

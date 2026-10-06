@@ -77,6 +77,7 @@ import { translateSurveyWriteError } from "@/lib/errors/surveyErrors";
 import DuplicateSurveyDialog from "./DuplicateSurveyDialog";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { createDefaultQuestion, createDefaultForm, shortId } from "@/lib/surveyFactories";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 interface SurveyDesignerProps {
   initialPackage?: SurveyPackage;
@@ -499,6 +500,7 @@ const SurveyDesigner = ({ initialPackage, serverUpdatedAt, surveyRecordId, proje
 
         <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-border">
           <div className="flex items-center gap-2">
+            <HelpLink slug="designer/overview" />
             <Button variant="outline" size="sm" onClick={() => setShowGlobalSettings(true)}>
               <Settings className="h-4 w-4 mr-2" />
               Survey Settings

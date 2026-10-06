@@ -28,14 +28,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2, Info, X, Lock } from "lucide-react";
+import { Plus, Trash2, X, Lock } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 interface FormManifestEditorProps {
   form: SurveyForm;
@@ -47,20 +42,6 @@ interface FormManifestEditorProps {
    *  footer offers only Close, no Save. */
   readOnly?: boolean;
 }
-
-// Info tooltip component
-const InfoTooltip = ({ text }: { text: string }) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Info className="h-4 w-4 text-muted-foreground cursor-help inline-block ml-1" />
-      </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-xs">
-        <p className="text-sm">{text}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
 
 // Multi-field selector component
 const FieldSelector = ({

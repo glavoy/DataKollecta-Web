@@ -3,7 +3,8 @@ import {
     FolderKanban,
     Database as DatabaseIcon,
     User,
-    LogOut
+    LogOut,
+    BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,6 +14,7 @@ const navigation = [
     { name: "Projects", href: "/app/projects", icon: FolderKanban },
     { name: "Data", href: "/app/data", icon: DatabaseIcon },
     { name: "My Account", href: "/app/account", icon: User },
+    { name: "Docs", href: "/docs", icon: BookOpen },
 ];
 
 const AppSidebar = () => {

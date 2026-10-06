@@ -237,13 +237,15 @@ const ValidationEditor = ({
                 <div className="space-y-1">
                   <Label className="text-xs">Condition Expression</Label>
                   <Textarea
-                    placeholder="e.g., age >= 18 AND age <= 65"
+                    placeholder="e.g., age < 18 OR age > 65"
                     value={check.condition}
                     onChange={(e) => updateLogicCheck(index, 'condition', e.target.value)}
                     rows={2}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Use field names and operators: =, &lt;, &gt;, &lt;=, &gt;=, &lt;&gt;, AND, OR
+                    Describe the WRONG answer: the message is shown, and the interviewer cannot
+                    continue, while this is true. Use field names and operators: =, &lt;, &gt;,
+                    &lt;=, &gt;=, &lt;&gt;, AND, OR
                   </p>
                 </div>
                 <div className="space-y-1">

@@ -17,6 +17,23 @@
 
 ## [Unreleased]
 
+### Added
+- **Documentation at `/docs`.** Public, no sign-in. Covers the platform, projects, members, field
+  teams, roles, surveys and versions, the Survey Designer (reference pages and a household-survey
+  tutorial), the field app and sync, data and exports, an FAQ and a glossary. Linked from the
+  landing page, the sign-in page and the sidebar, and from a Help icon on each project tab and in
+  the designer. A test fails on any page missing from the nav or any broken docs link.
+
+### Fixed
+- The survey delete dialog said a version's collected data would be deleted with it. It never is:
+  a version with any uploaded records cannot be deleted. The dialog now says so, and a refused
+  delete shows the reason instead of a generic error.
+- The upload dialog said the ZIP's filename becomes the Survey ID. It is the manifest's
+  `surveyId`.
+- The logic-check hint in the designer now says the expression describes the wrong answer: the
+  app shows the message while the expression is true. The old example (`age >= 18 AND age <= 65`)
+  would have blocked every valid answer.
+
 ## [1.0.0] - 2026-10-06
 
 The original release: the first version of the portal to be numbered. Everything before it was

@@ -66,6 +66,7 @@ import {
   type DataStatusCounts,
   type DataStatusFilter,
 } from "@/lib/dataStatus";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 /** A question as it arrives from the parsed survey manifest. */
 type FormField = ExportField;
@@ -598,7 +599,7 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Data</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">Data <HelpLink slug="data/browse" /></h2>
           <p className="text-sm text-muted-foreground">
             View and export collected data for this project
           </p>

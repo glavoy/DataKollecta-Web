@@ -37,6 +37,7 @@ import {
 } from "@/lib/projectStatus";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 interface ProjectSettingsProps {
   project: {
@@ -291,7 +292,7 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-semibold">Project Settings</h2>
+        <h2 className="text-xl font-semibold flex items-center gap-2">Project Settings <HelpLink slug="projects/settings" /></h2>
         <p className="text-sm text-muted-foreground">
           Manage project configuration and preferences
         </p>

@@ -80,6 +80,7 @@ import ProjectMembers from "@/components/project/ProjectMembers";
 import ProjectFieldTeam from "@/components/project/ProjectFieldTeam";
 import ProjectSettings from "@/components/project/ProjectSettings";
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
+import { HelpLink } from "@/components/docs/HelpLink";
 
 interface Project {
   id: string;
@@ -461,7 +462,7 @@ const ProjectDetail = () => {
       console.error("Delete error:", error);
       toast({
         title: "Error",
-        description: "Failed to delete survey.",
+        description: getErrorMessage(error, "Failed to delete survey."),
         variant: "destructive",
       });
     }
@@ -757,7 +758,7 @@ const ProjectDetail = () => {
           <TabsContent value="surveys" className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Surveys</h2>
+                <h2 className="text-xl font-semibold flex items-center gap-2">Surveys <HelpLink slug="surveys/overview" /></h2>
                 <p className="text-sm text-muted-foreground">Manage your survey versions and forms</p>
               </div>
               {canEdit && (
@@ -787,7 +788,7 @@ const ProjectDetail = () => {
                               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                             />
                             <p className="text-sm text-muted-foreground">
-                              The zip filename will be used as the unique Survey ID.
+                              The package's surveyId (in survey_manifest.gistx) becomes its unique Survey ID.
                             </p>
                           </div>
                           <div className="grid gap-2">
@@ -1077,7 +1078,7 @@ const ProjectDetail = () => {
               <DialogDescription>
                 This will permanently delete the survey version <span className="font-bold text-foreground">{surveyToDelete?.display_name}</span> ({surveyToDelete?.name}) and all its forms.
                 <br /><br />
-                <span className="text-destructive font-semibold">Warning: All data collected for this version will also be deleted.</span>
+                <span className="text-destructive font-semibold">A version with any uploaded records, including test records, cannot be deleted -- collected data is always retained.</span>
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
