@@ -67,6 +67,7 @@ import {
   type DataStatusFilter,
 } from "@/lib/dataStatus";
 import { HelpLink } from "@/components/docs/HelpLink";
+import { cn } from "@/lib/utils";
 
 /** A question as it arrives from the parsed survey manifest. */
 type FormField = ExportField;
@@ -617,7 +618,14 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
               >
                 {DATA_STATUS_FILTER_LABELS[filter]}
                 {surveysWithForms && (
-                  <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
+                  <span
+                    className={cn(
+                      "ml-1.5 rounded px-1.5 text-xs tabular-nums",
+                      dataFilter === filter
+                        ? "bg-secondary-foreground/90 font-semibold text-secondary"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {countFor(projectCounts, filter)}
                   </span>
                 )}
