@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildExportManifest } from '../exportManifest';
 import JSZip from 'jszip';
+import { readFileSync } from 'fs';
 const context = { exportId: 'export-1', createdAt: '2026-10-05T09:00:00Z', projectId: 'project-1', scope: 'survey-1' };
 
 describe('export integrity manifest', () => {
@@ -20,6 +21,12 @@ describe('export integrity manifest', () => {
       expect(bytes.byteLength).toBe(file.bytes);
       expect(Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')).toBe(file.sha256);
     }
+  });
+  it('records the portal release and commit that produced the export', async () => {
+    const result = await buildExportManifest({ 'data.csv': 'abc' }, context);
+    const packageVersion = JSON.parse(readFileSync('package.json', 'utf-8')).version;
+    expect(result.portal_version).toBe(packageVersion);
+    expect(result.portal_commit).toMatch(/^([0-9a-f]{40}|unknown)$/);
   });
   it('changes the checksum when a clinical value changes and orders filenames deterministically', async () => {
     const before = await buildExportManifest({ 'z.csv': 'x', 'a.csv': '1' }, context);

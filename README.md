@@ -83,6 +83,27 @@ Two things to know before you run it:
 
 A clean state is every service reporting "is up to date."
 
+## Releases
+
+The portal, migrations and Edge Functions share one version, `version` in
+`package.json`, with every change recorded in [CHANGELOG.md](CHANGELOG.md)
+(the file explains what counts as a patch, minor or major release). To cut a
+release:
+
+1. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - <date>`, add
+   the migration head, and open a fresh `## [Unreleased]` above it.
+2. Set `version` in `package.json` (and `package-lock.json`, via
+   `npm version X.Y.Z --no-git-tag-version`).
+3. Commit, then tag `web-vX.Y.Z`.
+4. `supabase db push` **before** pushing `main`: Vercel deploys every push to
+   `main` to production, and new portal code may read columns that only the new
+   migrations create.
+5. Push `main` and the tag (`git push && git push origin web-vX.Y.Z`).
+
+The sidebar shows the running version and its build commit, and every export
+manifest records both (`portal_version`, `portal_commit`). See SOP-002 §4.5 in
+`DataKollecta-Validation` for the controlled procedure.
+
 ## Verification
 
 ```bash

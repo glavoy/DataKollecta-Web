@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { APP_COMMIT, APP_COMMIT_SHORT, APP_VERSION } from "@/lib/appVersion";
 
 const navigation = [
     { name: "Projects", href: "/app/projects", icon: FolderKanban },
@@ -67,6 +68,12 @@ const AppSidebar = () => {
                     <LogOut className="h-5 w-5" />
                     Sign Out
                 </button>
+                <p
+                    className="px-4 pt-2 text-[11px] text-muted-foreground/70 tabular-nums"
+                    title={`DataKollecta portal ${APP_VERSION}, built from commit ${APP_COMMIT}`}
+                >
+                    v{APP_VERSION} · {APP_COMMIT_SHORT}
+                </p>
             </div>
         </aside>
     );

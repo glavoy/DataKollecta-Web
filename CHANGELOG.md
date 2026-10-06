@@ -1,0 +1,58 @@
+# Changelog — DataKollecta Web
+
+> **Versioning.** One version, `X.Y.Z` in `package.json`, covers everything this repository
+> ships together: the portal, the database migrations and the Edge Functions (`app-login`,
+> `app-sync`). Between releases, changes accumulate under `## [Unreleased]`; at release that
+> heading becomes `## [X.Y.Z] - <date>`, `package.json` is bumped, and the commit is tagged
+> `web-vX.Y.Z` (SOP-002 §4.5). Commits between releases keep the previous version; the portal
+> shows the commit next to the version, so every build is still identifiable.
+>
+> - **Z (patch)** — fixes and wording; nothing a user has to learn and no new data recorded.
+> - **Y (minor)** — new features, new columns or exports, new migrations that add to the schema.
+> - **X (major)** — anything that breaks the mobile app's sync contract, changes the meaning of
+>   recorded data, or needs action from every project.
+>
+> Each release records its **migration head** (the last file in `supabase/migrations/`), so the
+> database schema of a release is never in doubt.
+
+## [Unreleased]
+
+## [1.0.0] - 2026-10-06
+
+The original release: the first version of the portal to be numbered. Everything before it was
+unversioned and is described here as the baseline, not change by change. For the history, see
+`git log` before tag `web-v1.0.0`.
+
+**Migration head:** `20261006090000_submission_data_status.sql`
+
+### Baseline
+- **Projects and access.** Projects with owner / editor / viewer members and row-level security
+  on every table; project lifecycle (active, paused, archived).
+- **Surveys.** Upload of SurveyGen packages and the in-portal designer, which writes the same
+  package format. Survey lifecycle draft → test → deployed → complete, with deployed and
+  complete surveys locked against edits and deletion. New Version keeps one dataset and one
+  `databaseName` across versions; Duplicate forks a new study.
+- **Field team.** Field credentials (bcrypt), password reset that signs out every phone using the
+  credential, login rate limiting.
+- **Mobile API.** `app-login` (credentials → session token and downloadable surveys) and
+  `app-sync` (bulk upsert of submissions and device edit history).
+- **Data.** Browse records per form across every version of a survey; record view with device
+  and server history; CSV and ZIP export, each with a SHA-256 manifest and an `EXPORT` audit
+  event.
+- **Data integrity.** Append-only server audit trail on submissions, members, credentials,
+  projects, surveys and forms; collected data and audit history cannot be deleted or truncated;
+  owner-controlled project data lock.
+
+### Added
+- **Test and deployed data.** Every submission is labelled `test` or `deployed` from its survey's
+  status when the server first received it (`submissions.data_status`, set by a trigger; a resync
+  never changes it). The Data tab has a Deployed / Test / All selector, defaulting to Deployed,
+  and every list, count and export follows it; each CSV carries a `data_status` column. Owners can
+  correct labels with a reason through `reclassify_submissions`, audited per record. Existing
+  data was labelled by the migration: project `prismcss2026` as test, all others as deployed.
+  The deploy dialog now warns to sync test devices before moving a survey from test to deployed.
+- **Version display.** The sidebar shows the portal version and build commit
+  (`v1.0.0 · a1b2c3d`); hover for the full commit.
+- **Version in exports.** Each export manifest records `portal_version` and `portal_commit`, so
+  an exported file can be traced to the code that produced it. The manifest is also stored in
+  the `EXPORT` audit event.

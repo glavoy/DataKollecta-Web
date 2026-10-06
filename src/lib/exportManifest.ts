@@ -1,7 +1,14 @@
+import { APP_COMMIT, APP_VERSION } from '@/lib/appVersion';
+
 /** Integrity metadata covers exact UTF-8 file bytes, including a CSV BOM. */
 export interface ExportManifest {
   format_version: 1;
   export_id: string;
+  /** The portal release and build that produced the export (package.json
+      version and git commit), so a file can be traced to the code that wrote
+      it. Recorded in the EXPORT audit event with the rest of the manifest. */
+  portal_version: string;
+  portal_commit: string;
   created_at: string;
   project_id: string;
   scope: string;
@@ -25,6 +32,8 @@ export async function buildExportManifest(
   return {
     format_version: 1,
     export_id: context.exportId,
+    portal_version: APP_VERSION,
+    portal_commit: APP_COMMIT,
     created_at: context.createdAt,
     project_id: context.projectId,
     scope: context.scope,
