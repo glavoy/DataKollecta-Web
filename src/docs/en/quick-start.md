@@ -24,7 +24,7 @@ On the **Surveys** tab, choose **Create New Survey** to open the Survey Designer
 
 ## 6. Test it on a phone
 
-In the designer, clear any errors in the **Issues** panel, then choose **Promote to Test**. Install the field app on a phone and sign in with the project code and a field-team login. Then download the `[TEST]` survey and run a few practice interviews. Sync them, and check that they appear on the **Data** tab under the **Test** filter. → [Testing and deploying](/docs/designer/test-and-deploy)
+In the designer, clear any errors in the **Issues** panel, then choose **Promote to Test**. [Install the field app](/docs/install-app) on a phone and sign in with the project code and a field-team login. Then download the `[TEST]` survey and run a few practice interviews. Sync them, and check that they appear on the **Data** tab under the **Test** filter. → [Testing and deploying](/docs/designer/test-and-deploy)
 
 ## 7. Deploy
 

@@ -74,7 +74,10 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     title: "Field app",
-    pages: [{ slug: "field-app", title: "The field app and sync" }],
+    pages: [
+      { slug: "install-app", title: "Installing the field app" },
+      { slug: "field-app", title: "The field app and sync" },
+    ],
   },
   {
     title: "Data",

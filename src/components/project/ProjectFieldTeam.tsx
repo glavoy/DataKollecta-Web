@@ -54,6 +54,7 @@ import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { isUniqueViolation } from "@/lib/errors/postgrestError";
 import { PASSWORD_MIN_LENGTH } from "@/lib/passwordPolicy";
 import { HelpLink } from "@/components/docs/HelpLink";
+import { APP_DOWNLOAD_URL } from "@/lib/appDownload";
 
 interface ProjectFieldTeamProps {
   projectId: string;
@@ -327,6 +328,15 @@ const ProjectFieldTeam = ({ projectId, projectName, userRole }: ProjectFieldTeam
                 username) and revoke one worker or team without affecting the rest. Resetting a
                 password signs out every device using it until the new password is entered in
                 the app's Settings.
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Field workers install the Android app from{" "}
+                <a href={APP_DOWNLOAD_URL} className="font-medium underline underline-offset-2">
+                  this download link
+                </a>{" "}
+                (<a href="/docs/install-app" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  installation steps
+                </a>).
               </p>
             </div>
           </div>

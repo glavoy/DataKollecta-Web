@@ -23,6 +23,9 @@
   tutorial), the field app and sync, data and exports, an FAQ and a glossary. Linked from the
   landing page, the sign-in page and the sidebar, and from a Help icon on each project tab and in
   the designer. A test fails on any page missing from the nav or any broken docs link.
+- **Field app download.** The landing page and the Field Team tab link to the app's permanent
+  download URL (the `datakollecta.apk` asset on the latest GitHub release of the app repo), and a
+  new docs page, *Installing the field app*, covers installing and updating it.
 
 ### Fixed
 - The survey delete dialog said a version's collected data would be deleted with it. It never is:

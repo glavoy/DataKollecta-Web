@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Shield, Smartphone, CloudOff } from "lucide-react";
+import { Shield, Smartphone, CloudOff, Download } from "lucide-react";
+import { APP_DOWNLOAD_URL } from "@/lib/appDownload";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const Index = () => {
@@ -70,7 +71,7 @@ const Index = () => {
                 Design surveys, manage teams, and ensure data integrity across offline and online environments.
               </p>
 
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
                 <Button size="xl" variant="heroPrimary" asChild>
                   <Link to="/login">Sign In</Link>
                 </Button>
@@ -78,6 +79,17 @@ const Index = () => {
                   <Link to="/login" state={{ isSignUp: true }}>Sign Up</Link>
                 </Button>
               </div>
+
+              <p className="mb-10 text-sm text-accent/80">
+                <a href={APP_DOWNLOAD_URL} className="inline-flex items-center gap-2 underline underline-offset-4 hover:text-accent">
+                  <Download className="h-4 w-4" />
+                  Field worker? Download the Android app
+                </a>
+                {" · "}
+                <Link to="/docs/install-app" className="underline underline-offset-4 hover:text-accent">
+                  How to install it
+                </Link>
+              </p>
 
               {/* Feature pills */}
               <div className="flex flex-wrap items-center justify-center gap-4">

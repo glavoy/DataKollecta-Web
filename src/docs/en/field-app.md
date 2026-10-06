@@ -51,4 +51,4 @@ Records that can't upload stay on the device, so nothing is lost. Just resolve t
 
 ## Getting the app
 
-Ask your project's DataKollecta contact for the current Android installer (APK) and installation instructions.
+Download the Android app from its permanent link and install it. Step-by-step instructions are in [Installing the field app](/docs/install-app).
