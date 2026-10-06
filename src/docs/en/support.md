@@ -26,3 +26,13 @@ You need a free GitHub account to open an issue. The developer is notified strai
 - **When it happened** (date and time)
 
 > **Issues are public.** Never include passwords, participants' names or other personal information, and check screenshots before attaching them. Use project codes and record IDs instead. If you need to share something sensitive, say so in the issue, without the details, and the developer will arrange a private channel.
+
+## Reporting a security problem
+
+If you find a security problem, **don't open a public issue**. Examples are a way to see another project's data, to get past a sign-in, or to change records you shouldn't be able to. Report it privately instead:
+
+1. Open the repository concerned: [DataKollecta-Web](https://github.com/glavoy/DataKollecta-Web/security) for the website and its server, [DataKollecta](https://github.com/glavoy/DataKollecta/security) for the field app, or [DataKollecta-SurveyGen](https://github.com/glavoy/DataKollecta-SurveyGen/security) for SurveyGen. If you aren't sure, use DataKollecta-Web.
+2. On its **Security** tab, choose **Report a vulnerability**.
+3. Describe what you found and how to reproduce it.
+
+Only you and the developer can see the report. Please give the developer a chance to fix the problem before telling anyone else about it.
