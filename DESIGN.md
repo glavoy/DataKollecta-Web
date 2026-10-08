@@ -130,6 +130,14 @@ Real tables, in the order data actually flows through them:
   which is why the deploy dialog says to sync test devices first, and why
   owners can correct labels through the audited `reclassify_submissions` RPC.
   The data tab and every export filter on it, defaulting to deployed data.
+  `received_status` keeps the label a record arrived with and never changes.
+  Submissions are never deleted, with one exception: `purge_test_submissions`
+  (owner-only, reason required, refused on a locked project) removes records
+  labelled `test`. Each purged record's content stays in its `DELETE` audit
+  event. Its key goes into **`purged_submissions`**, so a phone that re-syncs it
+  is ignored rather than recreating it as `deployed`, and data feeds send it as
+  a tombstone. A record that arrived as `deployed` and was reclassified can be
+  purged, but the portal warns and the `PURGE` event flags it.
 - **`formchanges`** — the audit trail for edits made *after* a submission first
   synced (either a field correction made on the phone and re-synced, or an edit
   made directly on the website): old value, new value, who changed it, when.

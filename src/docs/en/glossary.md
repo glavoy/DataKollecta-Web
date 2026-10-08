@@ -39,5 +39,5 @@
 | **SurveyGen** | A command-line tool that builds survey packages from Excel. See [Building from Excel](/docs/designer/excel-surveygen). |
 | **SurveyTest** | A desktop tool that runs simulated interviews against a package. |
 | **Sync** | Uploading records and edit history from a device to the website. |
-| **Tombstone** | A row in a data feed saying a record is no longer readable with that key, usually because it was reclassified as test. The program should delete its copy. |
+| **Tombstone** | A row in a data feed saying a record is no longer readable with that key, usually because it was reclassified as test or purged. The program should delete its copy. |
 | **Test** | A survey status: downloadable and still editable. Also the label on records uploaded while a survey was in testing. |

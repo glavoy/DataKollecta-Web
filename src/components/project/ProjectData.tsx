@@ -33,6 +33,8 @@ import {
   FlaskConical,
   Package,
   Tags,
+  Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -115,11 +117,13 @@ interface Submission {
   submitted_at: string;
   survey_package_id: string;
   data_status: DataStatus;
+  /** data_status when the server first received the record; never changes. */
+  received_status: DataStatus;
 }
 
 interface ProjectDataProps {
   projectId: string;
-  /** The viewer's project role; only an owner may reclassify records. */
+  /** The viewer's project role; only an owner may reclassify or purge records. */
   userRole?: string | null;
 }
 
@@ -151,6 +155,9 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
   const [reclassifyTarget, setReclassifyTarget] = useState<DataStatus>('test');
   const [reclassifyReason, setReclassifyReason] = useState('');
   const [reclassifying, setReclassifying] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeReason, setPurgeReason] = useState('');
+  const [purging, setPurging] = useState(false);
   const [selectedForm, setSelectedForm] = useState<FormWithCount | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<Submission | null>(null);
@@ -300,7 +307,7 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
         withDataStatus(
           supabase
             .from('submissions')
-            .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at, survey_package_id, data_status')
+            .select('id, local_unique_id, data, surveyor_id, collected_at, submitted_at, survey_package_id, data_status, received_status')
             .eq('project_id', projectId)
             .in('survey_package_id', selectedForm.survey_package_ids)
             .eq('table_name', selectedForm.table_name),
@@ -403,6 +410,49 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
       });
     } finally {
       setReclassifying(false);
+    }
+  };
+
+  // Only records labelled test can be purged; the server enforces the same
+  // rule. Records that arrived as deployed and were reclassified are purgeable
+  // too, but the dialog counts them separately so that is a deliberate choice.
+  const purgeable = filteredSubmissions.filter((s) => selectedIds.has(s.id) && s.data_status === 'test');
+  const purgeableReceivedDeployed = purgeable.filter((s) => s.received_status === 'deployed').length;
+
+  const openPurge = () => {
+    setPurgeReason('');
+    setPurgeOpen(true);
+  };
+
+  const handlePurge = async () => {
+    const reason = purgeReason.trim();
+    if (!reason || purgeable.length === 0) return;
+    setPurging(true);
+    try {
+      const { data: purged, error } = await supabase.rpc('purge_test_submissions', {
+        p_project_id: projectId,
+        p_ids: purgeable.map((s) => s.id),
+        p_reason: reason,
+      });
+      if (error) throw error;
+      toast({
+        title: 'Test records purged',
+        description: `${plural(Number(purged) || 0, 'record')} removed. Their content is kept in the audit trail.`,
+      });
+      setPurgeOpen(false);
+      setSelectedIds(new Set());
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['surveysWithForms', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['formSubmissions', projectId] }),
+      ]);
+    } catch (error) {
+      toast({
+        title: 'Purge failed',
+        description: error instanceof Error ? error.message : 'The records could not be purged.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -746,6 +796,17 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
                     Reclassify…
                   </Button>
                 )}
+                {isOwner && (
+                  <Button
+                    variant="outline"
+                    onClick={openPurge}
+                    disabled={purgeable.length === 0}
+                    title="Permanently remove the selected test records"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Purge test records…
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={handleExportSingleForm}
@@ -1017,6 +1078,62 @@ const ProjectData = ({ projectId, userRole }: ProjectDataProps) => {
             <Button onClick={handleReclassify} disabled={reclassifying || !reclassifyReason.trim()}>
               {reclassifying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Mark {plural(selectedIds.size, 'record')} {reclassifyTarget}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purge Dialog */}
+      <Dialog open={purgeOpen} onOpenChange={(open) => !purging && setPurgeOpen(open)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Purge {plural(purgeable.length, 'test record')}</DialogTitle>
+            <DialogDescription>
+              The records are removed from the project, its exports and its data feeds. Their
+              content is kept in the audit trail with your name and reason.
+              {selectedIds.size > purgeable.length &&
+                ` ${plural(selectedIds.size - purgeable.length, 'selected record')} labelled deployed will be left alone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {purgeableReceivedDeployed > 0 && (
+              <div className="flex gap-2 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
+                <p>
+                  {plural(purgeableReceivedDeployed, 'record')} arrived as <strong>deployed</strong> and
+                  {purgeableReceivedDeployed === 1 ? ' was' : ' were'} later reclassified as test. Only
+                  purge {purgeableReceivedDeployed === 1 ? 'it' : 'them'} if you are sure{' '}
+                  {purgeableReceivedDeployed === 1 ? 'it is' : 'they are'} practice data. The audit trail
+                  will flag {purgeableReceivedDeployed === 1 ? 'it' : 'them'}.
+                </p>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              If a phone still holds a purged record and syncs it again, the server ignores it, so it
+              cannot come back as deployed data. Wipe or reinstall test devices anyway.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="purge-reason">Reason (required)</Label>
+              <Textarea
+                id="purge-reason"
+                value={purgeReason}
+                onChange={(e) => setPurgeReason(e.target.value)}
+                placeholder="e.g. Practice interviews from the training week, before deployment"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPurgeOpen(false)} disabled={purging}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handlePurge}
+              disabled={purging || !purgeReason.trim() || purgeable.length === 0}
+            >
+              {purging && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Purge {plural(purgeable.length, 'record')}
             </Button>
           </DialogFooter>
         </DialogContent>

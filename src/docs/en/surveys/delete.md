@@ -5,7 +5,7 @@ You can only delete a survey version that:
 - is in **Draft** or **Test** status, **and**
 - has **no uploaded records**, including test records.
 
-Collected data is never destroyed. If even one record has reached the server for a version, deleting it is refused. Move a survey you no longer need to **Complete** instead, or simply leave a Test survey unused.
+Deployed data is never destroyed. If even one record has reached the server for a version, deleting it is refused. Move a survey you no longer need to **Complete** instead, or simply leave a Test survey unused.
 
 ## Delete a survey version
 
@@ -18,7 +18,9 @@ This permanently removes that version, its forms and its package file. The other
 
 ## "This survey contains retained data and cannot be deleted"
 
-This message means records have been uploaded for this version. Most often they are practice records from testing. Those records are part of the project's audit trail and are kept. Your options are:
+This message means records have been uploaded for this version. Most often they are practice records from testing. Your options are:
+
+- If they are all test records, an owner can [purge them](/docs/data/reclassify#purging-test-records). Once a version has no records left, you can delete it.
 
 - Leave the survey in **Test**. Its records stay labelled as test data and are left out of exports by default.
 - Move it to **Draft**, so phones stop downloading it.

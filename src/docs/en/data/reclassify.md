@@ -24,6 +24,28 @@ Owners can correct labels:
 
 Reclassifying never changes the record's data, only its label. Each change is written to the project's audit trail with your name and reason.
 
+## Purging test records
+
+Test records are hidden by default, so you don't have to remove them. If you'd rather not keep them, owners can **purge** them:
+
+1. Open the form's records on the **Data** tab and choose the **Test** filter.
+2. Tick the records to remove. The box in the header selects every record on every page.
+3. Choose **Purge test records…**.
+4. Enter a **Reason** (required), for example *Practice interviews from the training week, before deployment*.
+5. Choose **Purge N records** to confirm.
+
+Only records labelled *test* can be purged. Any *deployed* records in your selection are left alone. Deployed data can never be deleted.
+
+What a purge does:
+
+- The records disappear from the Data tab, exports and [data feeds](/docs/data-feeds/overview). A feed sends a tombstone for each one, so connected programs remove their copies.
+- Their full content stays in the project's **audit trail**, with your name and reason. Nothing is lost beyond recovery.
+- If a phone still holds a purged record and syncs it again, the server **ignores** it. It can't come back, and it can't come back labelled *deployed*.
+
+If some selected records **arrived as deployed** and were later reclassified as test, the dialog warns you and shows how many. They can still be purged, but the audit trail flags them. Only go ahead if you're sure they are practice data.
+
+A purge can't run while the project's [data lock](/docs/projects/settings) is on.
+
 ## Finding practice records
 
 Practice records often stand out by:

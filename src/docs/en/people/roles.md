@@ -26,6 +26,7 @@ Each [member](/docs/people/members) of a project has one of three roles, and the
 | Browse records and edit history | ✓ | ✓ | ✓ |
 | Export to CSV | ✓ | ✓ | ✓ |
 | Reclassify records as test or deployed | ✓ | | |
+| Purge test records | ✓ | | |
 | See, create and revoke [data feed keys](/docs/data-feeds/overview) | ✓ | | |
 
 ## Choosing roles

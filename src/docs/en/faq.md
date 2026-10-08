@@ -30,7 +30,7 @@ Open the **Issues** panel from the designer header, fix every error, and try aga
 
 ### I can't delete a survey
 
-Only **Draft** or **Test** versions with **no uploaded records** can be deleted. Collected data, including test data, is never destroyed. See [Deleting a survey](/docs/surveys/delete).
+Only **Draft** or **Test** versions with **no uploaded records** can be deleted. Deployed data is never destroyed. An owner can [purge test records](/docs/data/reclassify#purging-test-records) first, and then a version left with no records can be deleted. See [Deleting a survey](/docs/surveys/delete).
 
 ### Should I use New Version or Duplicate?
 
@@ -59,7 +59,7 @@ Usually the session has expired, or the password was reset: sign in again in the
 
 ### Practice interviews are showing as deployed data
 
-A test device synced after the survey was deployed. An owner can [reclassify](/docs/data/reclassify) them.
+A test device synced after the survey was deployed. An owner can [reclassify](/docs/data/reclassify) them, and then purge them if they aren't wanted.
 
 ### Can a dashboard see other projects' data?
 
