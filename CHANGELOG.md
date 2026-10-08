@@ -17,6 +17,22 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-08
+
+**Migration head:** `20261008120000_scope_survey_storage_to_projects.sql`
+
+### Security
+- **Survey package storage is now scoped to project membership.** Any signed-in portal user,
+  including one in no project, could list, download, overwrite or delete any project's survey
+  packages in the `surveys` storage bucket: its policies only checked that the caller was signed
+  in. Now project members can read their own project's packages, and only its owners and editors
+  can upload, replace or delete them. The zip of a **deployed or complete** survey cannot be
+  overwritten or deleted by anyone through the API, closing the path by which a deployed
+  package's zip was destroyed on 2026-08-23. After an empty project is deleted, its former
+  owners and editors can still remove its leftover zips. The unused `uploads` bucket's
+  open policies are removed. Migration `20261008120000_scope_survey_storage_to_projects.sql`;
+  tests in `supabase/functions/tests/storage-policies.test.ts`.
+
 ## [1.1.0] - 2026-10-08
 
 **Migration head:** `20261008090000_project_feed_keys.sql`
