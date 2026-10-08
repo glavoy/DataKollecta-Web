@@ -61,6 +61,10 @@ Usually the session has expired, or the password was reset: sign in again in the
 
 A test device synced after the survey was deployed. An owner can [reclassify](/docs/data/reclassify) them.
 
+### Can a dashboard see other projects' data?
+
+No. A [data feed key](/docs/data-feeds/overview) belongs to one project, and the project comes from the key itself. No setting or parameter lets a program holding the key reach another project. Each project's dashboard needs its own key.
+
 ### Subject IDs are duplicated or restarted on a device
 
 This happens when a survey's **Database Name** changes between versions, or when an app is reinstalled and its data cleared. The website prevents the first cause for surveys managed here. If you see it, [report it](/docs/support).

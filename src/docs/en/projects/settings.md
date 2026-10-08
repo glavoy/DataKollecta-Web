@@ -1,6 +1,6 @@
 # Project settings
 
-The project's **Settings** tab has four sections: **Data lock**, **General**, **Access & Visibility** and the **Danger Zone**. Anyone in the project can see them, but **only owners can change them**.
+The project's **Settings** tab has five sections: **Data lock**, **General**, **Access & Visibility**, **Data feeds** and the **Danger Zone**. Anyone in the project can see them (apart from Data feeds, which only owners see), but **only owners can change them**.
 
 ## Data lock
 
@@ -39,6 +39,10 @@ This control has three states. The change takes effect **immediately**, with no 
 If the project has a deployed survey, you'll be asked to confirm before pausing or archiving, because devices in the middle of collecting data will lose access at their next sync.
 
 > Neither pausing nor archiving deletes or locks anything. You can still edit surveys, manage people and export data. To stop the data itself from changing, use the data lock.
+
+## Data feeds
+
+**Data feeds** lets an owner create read-only keys, so a dashboard or a scheduled script can read this project's data automatically. See [What data feeds are](/docs/data-feeds/overview) and [Creating and revoking keys](/docs/data-feeds/create-key).
 
 ## Danger Zone: deleting a project
 

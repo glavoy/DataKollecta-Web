@@ -89,6 +89,15 @@ export const DOC_SECTIONS: DocSection[] = [
     ],
   },
   {
+    title: "Data feeds (API access)",
+    pages: [
+      { slug: "data-feeds/overview", title: "What data feeds are" },
+      { slug: "data-feeds/create-key", title: "Creating and revoking keys" },
+      { slug: "data-feeds/api-reference", title: "Feed API reference" },
+      { slug: "data-feeds/dashboard-setup", title: "Tutorial: connecting a project dashboard" },
+    ],
+  },
+  {
     title: "Help",
     pages: [
       { slug: "faq", title: "FAQ and troubleshooting" },

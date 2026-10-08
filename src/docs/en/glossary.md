@@ -10,6 +10,7 @@
 | **Child form** | A form linked to a parent form, often repeated, such as *Household member*. |
 | **Complete** | A survey status: collection has finished, the survey is no longer offered to phones, and the data is kept. |
 | **CRF / form** | One questionnaire that saves to one table. Each form is one row in the survey's `crfs` list. |
+| **Data feed key** | A read-only key, created by a project owner, that lets a program read one project's data automatically. See [Data feeds](/docs/data-feeds/overview). |
 | **Data lock** | An owner's switch that stops any new records or changes from being accepted for a project. |
 | **Database Name** | The file a survey's records are stored in on each device. It is shared by every version of a survey and must never change. |
 | **Deployed** | A survey status: live in the field and locked. Also the label on records uploaded while a survey was live. |
@@ -38,4 +39,5 @@
 | **SurveyGen** | A command-line tool that builds survey packages from Excel. See [Building from Excel](/docs/designer/excel-surveygen). |
 | **SurveyTest** | A desktop tool that runs simulated interviews against a package. |
 | **Sync** | Uploading records and edit history from a device to the website. |
+| **Tombstone** | A row in a data feed saying a record is no longer readable with that key, usually because it was reclassified as test. The program should delete its copy. |
 | **Test** | A survey status: downloadable and still editable. Also the label on records uploaded while a survey was in testing. |

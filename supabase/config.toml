@@ -464,3 +464,9 @@ additional_redirect_urls = [
   "http://localhost:5173/auth/callback",
   "https://www.datakollecta.com/auth/callback",
 ]
+
+# project-data-feed authenticates callers with a data feed key, not a Supabase
+# JWT (see the function's header comment), so the gateway check is off. app-login
+# and app-sync are deployed with --no-verify-jwt for the same reason.
+[functions.project-data-feed]
+verify_jwt = false

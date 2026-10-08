@@ -54,3 +54,5 @@ Every export comes with a manifest file recording:
 The hashes let anyone check later that a file hasn't been changed since it was exported. The project's audit trail records the same details, plus who made the export.
 
 > An export reads the data as it is at that moment. For a dataset that will be formally endorsed, [lock the project's data](/docs/projects/settings#data-lock) first, so that nothing can change between the review and the export.
+
+> To keep a dashboard or script up to date automatically instead of exporting by hand, use a [data feed](/docs/data-feeds/overview).

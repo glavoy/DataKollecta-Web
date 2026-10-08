@@ -38,6 +38,7 @@ import {
 import { getErrorMessage } from "@/lib/errors/getErrorMessage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HelpLink } from "@/components/docs/HelpLink";
+import ProjectDataFeeds from "@/components/project/ProjectDataFeeds";
 
 interface ProjectSettingsProps {
   project: {
@@ -422,6 +423,8 @@ const ProjectSettings = ({ project, userRole, onProjectUpdate, hasDeployedSurvey
           </div>
         </CardContent>
       </Card>
+
+      {(isOwner || userRole === 'admin') && <ProjectDataFeeds projectId={project.id} isOwner={isOwner} />}
 
       {/* Pause-with-deployed-surveys confirmation, and the equivalent for
           Archive right below it -- both can interrupt live field

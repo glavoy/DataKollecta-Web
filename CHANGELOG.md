@@ -18,6 +18,16 @@
 ## [Unreleased]
 
 ### Added
+- **Data feeds.** Project owners can create read-only **data feed keys** (Settings → Data feeds) so a
+  dashboard or scheduled script can read one project's data automatically. A key is scoped to one
+  project, optionally to some surveys, and to deployed data unless the owner includes test data; it
+  can expire and be revoked, and only its SHA-256 is stored. The new `project-data-feed` Edge
+  Function serves `forms`, `submissions` (incremental, keyset-paged, with tombstones for records
+  reclassified out of scope) and `formchanges`; the project always comes from the key, never from
+  the request. Key creation, revocation and feed reads are written to the audit trail. Migration
+  `20261008090000_project_feed_keys.sql`, which also makes the database bump
+  `submissions.updated_at` on every update (previously `reclassify_submissions` did not). New docs
+  section *Data feeds (API access)*, including a tutorial for connecting a project dashboard.
 - **Documentation at `/docs`.** Public, no sign-in. Covers the platform, projects, members, field
   teams, roles, surveys and versions, the Survey Designer (reference pages and a household-survey
   tutorial), the field app and sync, data and exports, an FAQ and a glossary. Linked from the
