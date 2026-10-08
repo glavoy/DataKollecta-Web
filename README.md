@@ -105,7 +105,7 @@ release:
 5. Push `main` and the tag (`git push && git push origin web-vX.Y.Z`).
 
 The sidebar shows the running version and its build commit, and every export
-manifest records both (`portal_version`, `portal_commit`). See SOP-002 §4.5 in
+manifest records both (`portal_version`, `portal_commit`). See DK-SOP-001 §4.4 in
 `DataKollecta-Validation` for the controlled procedure.
 
 ## Verification
@@ -131,3 +131,11 @@ npm run test:functions
 
 See [supabase/functions/tests/README.md](supabase/functions/tests/README.md) for
 what it covers and why it is written against a real database rather than mocks.
+
+## Validation
+
+The portal, server functions and database are part of the validated DataKollecta system. The
+validation package (requirements, test protocol, summary report and the system management
+SOP) is in the separate `DataKollecta-Validation` repository. Releases follow DK-SOP-001 §4,
+and the suites above are the automated tests AT-06 to AT-09 in its test protocol
+(DK-VAL-004).

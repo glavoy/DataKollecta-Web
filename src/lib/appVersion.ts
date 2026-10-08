@@ -2,7 +2,7 @@
  * The portal's release version and the commit it was built from.
  *
  * The version is package.json's, bumped at each release with a matching
- * CHANGELOG.md entry and a `web-vX.Y.Z` tag (SOP-002). Between releases the
+ * CHANGELOG.md entry and a `web-vX.Y.Z` tag (DK-SOP-001 §4.4). Between releases the
  * version stays the same while the commit moves, which is why both are shown:
  * the version says which release, the commit says exactly which build.
  */

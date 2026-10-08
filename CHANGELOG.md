@@ -4,7 +4,7 @@
 > ships together: the portal, the database migrations and the Edge Functions (`app-login`,
 > `app-sync`, `project-data-feed`). Between releases, changes accumulate under `## [Unreleased]`; at release that
 > heading becomes `## [X.Y.Z] - <date>`, `package.json` is bumped, and the commit is tagged
-> `web-vX.Y.Z` (SOP-002 §4.5). Commits between releases keep the previous version; the portal
+> `web-vX.Y.Z` (DK-SOP-001 §4.4). Commits between releases keep the previous version; the portal
 > shows the commit next to the version, so every build is still identifiable.
 >
 > - **Z (patch)** — fixes and wording; nothing a user has to learn and no new data recorded.
@@ -16,6 +16,11 @@
 > database schema of a release is never in doubt.
 
 ## [Unreleased]
+
+### Housekeeping
+- References to the deleted validation repository's documents now point to the new validation
+  package (DK-SOP-001, DK-VAL-002, DK-VAL-003, URS-603). Comment-only change in migration
+  `20261005100000`; nothing re-runs. README gains a Validation section.
 
 ## [1.2.0] - 2026-10-08
 
@@ -29,7 +34,7 @@
   cannot come back labelled deployed. Data feeds send a tombstone for each purged record. Records
   that arrived as deployed and were reclassified can be purged, but the dialog shows them
   separately and the `PURGE` event flags them. New column `submissions.received_status` and new
-  table `purged_submissions`. Validation item R20 / URS-807.
+  table `purged_submissions`. Validation requirement URS-603.
 
 ## [1.1.1] - 2026-10-08
 

@@ -1,5 +1,5 @@
 -- Hardening of the audit trail introduced in 20261005090000, closing four gaps
--- found by probing it against the design in the validation package (FS-001 §3.5):
+-- found by probing it against the design in the validation package (DK-VAL-003 §7):
 --
 -- 1. Every change made through the API was attributed to `authenticator`.
 --    session_user is the PostgREST login role for EVERY API request, so a
@@ -14,7 +14,7 @@
 --    leave no trace. Statement-level BEFORE TRUNCATE triggers refuse it.
 --    (A table owner can still drop or disable a trigger; that is DDL, visible
 --    in migration history and platform logs, and is the residual risk the
---    validation package accepts as RA-001 R-A6.)
+--    validation package accepts as DK-VAL-002 R-10.)
 --
 -- 3. A locked project still accepted formchanges. A device edit made after
 --    the lock would have its submission update refused but its change rows
