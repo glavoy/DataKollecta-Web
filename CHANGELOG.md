@@ -17,6 +17,20 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-08
+
+**Migration head:** `20261008150000_purge_test_submissions.sql`
+
+### Added
+- **Owners can purge test records** (Data tab → Test → *Purge test records…*), with a required
+  reason. Only records labelled test can be removed; deployed data still can never be deleted, by
+  any route, and a data lock refuses a purge. Each purged record's full content stays in the audit
+  trail. A phone that re-syncs a purged record is ignored (`DISCARD_PURGED` audit event), so it
+  cannot come back labelled deployed. Data feeds send a tombstone for each purged record. Records
+  that arrived as deployed and were reclassified can be purged, but the dialog shows them
+  separately and the `PURGE` event flags them. New column `submissions.received_status` and new
+  table `purged_submissions`. Validation item R20 / URS-807.
+
 ## [1.1.1] - 2026-10-08
 
 **Migration head:** `20261008120000_scope_survey_storage_to_projects.sql`
