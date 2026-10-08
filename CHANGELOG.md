@@ -2,7 +2,7 @@
 
 > **Versioning.** One version, `X.Y.Z` in `package.json`, covers everything this repository
 > ships together: the portal, the database migrations and the Edge Functions (`app-login`,
-> `app-sync`). Between releases, changes accumulate under `## [Unreleased]`; at release that
+> `app-sync`, `project-data-feed`). Between releases, changes accumulate under `## [Unreleased]`; at release that
 > heading becomes `## [X.Y.Z] - <date>`, `package.json` is bumped, and the commit is tagged
 > `web-vX.Y.Z` (SOP-002 §4.5). Commits between releases keep the previous version; the portal
 > shows the commit next to the version, so every build is still identifiable.
@@ -16,6 +16,10 @@
 > database schema of a release is never in doubt.
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-10-08
+
+**Migration head:** `20261008090000_project_feed_keys.sql`
 
 ### Added
 - **Data feeds.** Project owners can create read-only **data feed keys** (Settings → Data feeds) so a
